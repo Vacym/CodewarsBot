@@ -149,7 +149,7 @@ class History {
 
   async updateKata(kata, data, mode = 'hour') {
     // kata - kata in database
-    // dara - new checked data of kata
+    // data - new checked data of kata
     const newData = {};
     const nowTime = new Date();
     let text = this.generateChangesTextAndModifyData(kata, data, newData, mode);
@@ -167,7 +167,10 @@ class History {
 
       client.query(query);
 
-      if (!text) return;
+      if (!text) {
+        await client.query('COMMIT');
+        return;
+      }
 
       const followers = await client.getValidFollowers(kata.followers, mode);
 
