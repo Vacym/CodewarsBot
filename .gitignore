@@ -1,0 +1,19 @@
+# Node build artifacts
+node_modules
+npm-debug.log
+tempCodeRunnerFile.js
+
+# Local development
+*.env
+*.dev
+.DS_Store
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# Self
+.prettierrc
+.eslintrc.json
+once.js
+env.js
