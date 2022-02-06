@@ -7,7 +7,6 @@ async function checkUser(tgId) {
 }
 
 async function createNewUser(tgId) {
-  console.log('[New user]', tgId);
   const client = await PG.getClient();
   let userId;
 

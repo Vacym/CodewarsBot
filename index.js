@@ -39,21 +39,21 @@ bot.use(
       let userId = await checkUser(tgId);
 
       if (!userId) {
-        ctx.session.userId = await createNewUser(tgId);
-        ctx.reply(
+        userId = await createNewUser(tgId);
+        console.log('[New user]', tgId, userId);
+        await ctx.reply(
           `\
 Welcome to the bot for tracking changes in your katas in Codewars.
 It is very important to me that users are happy with their interaction with the bot, \
 so you can tell me about your experiences, bugs or suggestions.`,
           mainMenuKb()
         );
-        return;
       }
 
       ctx.session.userId = userId;
       ctx.session.checked = true;
 
-      console.log(ctx.session.userId);
+      console.log('[Today user]', userId);
 
       await next();
     }
