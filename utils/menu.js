@@ -49,7 +49,6 @@ To switch the mode, simply press the button`,
 
 addActionBot(/toggle_(hour|day|month)/, async (ctx) => {
   const mode = ctx.match[1];
-  console.log(mode);
   const client = await PG.getClient();
 
   try {
@@ -60,7 +59,7 @@ addActionBot(/toggle_(hour|day|month)/, async (ctx) => {
       [ctx.update.callback_query.from.id]
     );
 
-    console.log(ctx.session);
+    console.log('[Toggle notification]', ctx.session.userId, '[mode]', mode);
 
     client.updateUsersKataSettings(ctx.session.userId, mode);
 

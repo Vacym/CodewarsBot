@@ -109,12 +109,10 @@ export default {
           [kata.followers]
         );
 
-        console.log(kata.kata_id, following);
         if (following != kata[mode]) {
           changing_katas.push(kata.kata_id);
         }
       }
-      console.log(`(${changing_katas.toString()})`);
 
       if (changing_katas.length) {
         client.query(
