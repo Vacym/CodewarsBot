@@ -62,7 +62,6 @@ class History {
     const waitHour = this.timeForNextCheck('hour');
     // const waitHour = 2000;
     console.log('hour', this.timeString(+waitHour));
-    console.log(`Next check in ${new Date(waitHour).getMinutes()} minutes`);
     setTimeout(this.checkAndUpdate.bind(this), waitHour > MINUTES_55 ? 0 : waitHour, 'hour');
 
     const waitDay = this.timeForNextCheck('day');
@@ -167,7 +166,6 @@ class History {
       `;
 
       client.query(query);
-      console.log(kata);
 
       if (!text) return;
 
