@@ -7,7 +7,7 @@ import { mainMenuKb } from './utils/keyboards.js';
 // util libraries
 
 import { addKataScene, deleteKataScene } from './utils/scenes.js';
-import { initializeMenu, firstMenu } from './utils/menu.js';
+import { initializeMenu, firstMenu } from './utils/menu/menu.js';
 import History from './utils/history.js';
 import PG from './utils/pg.js';
 import Slar from './utils/sqlArray.js';
