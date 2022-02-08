@@ -2,16 +2,17 @@ const MODE = Boolean(process.env.MODE); // true: on server, false: locally
 const ADMINS = JSON.parse(process.env.ADMINS);
 
 // bot libraries
-import { Telegraf, session, Scenes } from 'telegraf';
-import { mainMenuKb } from './utils/keyboards.js';
-// util libraries
+import { Telegraf, Scenes } from 'telegraf';
+import { session } from './utils/session.js';
 
+// util libraries
 import { addKataScene, deleteKataScene } from './utils/scenes.js';
 import { initializeMenu, firstMenu } from './utils/menu/menu.js';
+import { mainMenuKb } from './utils/keyboards.js';
 import History from './utils/history.js';
 import PG from './utils/pg.js';
 import Slar from './utils/sqlArray.js';
-import { checkUser, createNewUser } from './utils/newUser.js';
+import userManager from './utils/userManager.js';
 PG.Slar = Slar;
 
 // Running the bot
@@ -22,43 +23,10 @@ bot.telegram.sendMessage('1278955287', `Starting a ${MODE ? 'remote' : 'local'} 
 
 const stage = new Scenes.Stage([addKataScene, deleteKataScene]);
 stage.hears('exit', (ctx) => ctx.scene.leave());
-bot.use(session(), stage.middleware());
+bot.use(session(), stage.middleware(), userManager());
 
 const history = new History(bot);
 history.startTracking();
-
-bot.use(
-  Telegraf.optional(
-    async (ctx) => {
-      return !ctx.session.checked;
-    },
-
-    async (ctx, next) => {
-      const tgId = ctx.message?.from.id || ctx.update.callback_query.from.id;
-
-      let userId = await checkUser(tgId);
-
-      if (!userId) {
-        userId = await createNewUser(tgId);
-        console.log('[New user]', tgId, userId);
-        await ctx.reply(
-          `\
-Welcome to the bot for tracking changes in your katas in Codewars.
-It is very important to me that users are happy with their interaction with the bot, \
-so you can tell me about your experiences, bugs or suggestions.`,
-          mainMenuKb()
-        );
-      }
-
-      ctx.session.userId = userId;
-      ctx.session.checked = true;
-
-      console.log('[Today user]', userId);
-
-      await next();
-    }
-  )
-);
 
 bot.start((ctx) => {
   ctx.reply(
