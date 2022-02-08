@@ -8,8 +8,8 @@ export default [
   [
     'kata_katalog',
     async (ctx) => {
-      ctx.answerCbQuery();
-      send(ctx, 'Soon!', Markup.inlineKeyboard([backButton('menu')]));
+      await ctx.answerCbQuery();
+      await send(ctx, 'Soon!', Markup.inlineKeyboard([backButton('menu')]));
     },
   ],
 ];

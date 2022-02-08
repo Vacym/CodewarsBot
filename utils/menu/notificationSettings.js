@@ -6,7 +6,7 @@ export default [
   [
     'notification_settings',
     async (ctx) => {
-      ctx.answerCbQuery();
+      await ctx.answerCbQuery();
 
       const settings = (
         await PG.query(
@@ -15,7 +15,7 @@ export default [
         )
       ).rows[0];
 
-      send(
+      await send(
         ctx,
         `You can choose how often you want to be notified when a kata is changed.
       To switch the mode, simply press the button`,
@@ -31,6 +31,7 @@ export default [
 
       try {
         await client.query('BEGIN');
+        await ctx.answerCbQuery();
 
         const settings = await client.queryLine(
           `UPDATE settings SET ${mode} = NOT ${mode} WHERE user_id = (SELECT id FROM users WHERE tg_id = $1) RETURNING *`,
@@ -39,7 +40,7 @@ export default [
 
         console.log('[Toggle notification]', ctx.session.userId, '[mode]', mode);
 
-        client.updateUsersKataSettings(ctx.session.userId, mode);
+        await client.updateUsersKataSettings(ctx.session.userId, mode);
 
         await ctx.editMessageReplyMarkup(settingsKb(settings).reply_markup);
 
@@ -48,7 +49,6 @@ export default [
         await client.query('ROLLBACK');
         throw e;
       } finally {
-        ctx.answerCbQuery();
         client.release();
       }
     },

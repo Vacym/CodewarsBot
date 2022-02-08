@@ -14,7 +14,11 @@ function createAction(trigger, fun) {
       try {
         await fun(ctx);
       } catch (e) {
-        console.error(e);
+        if (e.response.error_code == 400) {
+          console.error(e.response.description);
+        } else {
+          console.error(e);
+        }
       }
     },
   ];
@@ -38,8 +42,8 @@ const firstMenu = [
 const firstMenuAction = [
   'menu',
   async (ctx) => {
-    ctx.answerCbQuery();
-    send(ctx, ...firstMenu);
+    await ctx.answerCbQuery();
+    await send(ctx, ...firstMenu);
   },
 ];
 
