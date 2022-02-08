@@ -37,7 +37,6 @@ async function createNewUser(tgId) {
 }
 
 async function userInitialization(ctx) {
-  console.log(+new Date(), ctx.message?.text, 'checking');
   const tgId = ctx.from.id;
 
   let userId = await checkUser(tgId);
@@ -63,8 +62,6 @@ so you can tell me about your experiences, bugs or suggestions.`,
 function userManager() {
   return Telegraf.optional(
     async (ctx) => {
-      console.log('id', ctx.session.userId);
-      console.log(+new Date(), ctx.message?.text, ctx.session.checking);
       return !ctx.session.userId && !ctx.session.checking;
     },
 
