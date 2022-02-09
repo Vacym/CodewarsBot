@@ -14,10 +14,11 @@ function session(options) {
     if (key == null) {
       return await next();
     }
-    ctx.session = store.key;
+    ctx.session = store[key];
 
     if (ctx.session === void 0) {
-      store.key = ctx.session;
+      ctx.session = {};
+      store[key] = ctx.session;
     }
     await next();
   };
