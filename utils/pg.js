@@ -64,6 +64,17 @@ export default {
       return result.rowCount ? result.rows[0][0] : null;
     };
 
+    client.queryColumn = async (text, values) => {
+      const query = {
+        text,
+        values,
+        rowMode: 'array',
+      };
+      const result = await client.query(query);
+
+      return result.rowCount ? result.rows.map((x) => x[0]) : null;
+    };
+
     client.getKataById = async (kataId) => {
       const kata = await client.queryFirst(`SELECT kata FROM katas WHERE id = $1`, [kataId]);
       return kata;

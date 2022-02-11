@@ -321,13 +321,17 @@ Completed <b>${data.completed[1]}</b> times <i>(${sign(delta)})</i>`;
     if ('stars' in data) {
       const delta = data.stars[1] - data.stars[0];
       text += `${text ? '\n' : ''}\
-Stars: <b>${data.stars}</b> <i>(${sign(delta)})</i>.`;
+Stars: <b>${data.stars[1]}</b> <i>(${sign(delta)})</i>.`;
     }
     if ('very' in data) {
-      data.totalVoites[1] = data.very[1] + data.somewhat[1] + data.not[1];
-      data.totalVoites[0] = data.very[0] + data.somewhat[0] + data.not[0];
-      data.rating[1] = ((data.very[1] + data.somewhat[1] / 2) / data.totalVoites[1]) * 100;
-      data.rating[0] = ((data.very[0] + data.somewhat[0] / 2) / data.totalVoites[0]) * 100;
+      data.totalVoites = [
+        data.very[1] + data.somewhat[1] + data.not[1],
+        data.very[0] + data.somewhat[0] + data.not[0],
+      ];
+      data.rating = [
+        ((data.very[1] + data.somewhat[1] / 2) / data.totalVoites[1]) * 100,
+        ((data.very[0] + data.somewhat[0] / 2) / data.totalVoites[0]) * 100,
+      ];
 
       const deltaVoites = data.totalVoites[1] - data.totalVoites[0];
       const deltaVery = data.very[1] - data.very[0];
