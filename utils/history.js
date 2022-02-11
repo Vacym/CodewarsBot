@@ -250,52 +250,28 @@ class History {
   }
 
   generateChangesTextAndModifyData(kata, data, newData, mode = 'hour') {
-    const plus = (delta) => (delta < 0 ? '' : '+');
-
-    let text = '';
-    data.totalVoites = data.very + data.somewhat + data.not;
-    kata.totalVoites = kata.very + kata.somewhat + kata.not;
-    data.rating = ((data.very + data.somewhat / 2) / data.totalVoites) * 100;
-    kata.rating = ((kata.very + kata.somewhat / 2) / kata.totalVoites) * 100;
+    const changedData = [];
 
     if (data.completed != kata.completed) {
-      const delta = data.completed - kata.completed;
-      text += `\nCompleted <b>${data.completed}</b> times \
-<i>(${plus(delta)}${delta})</i>`;
-
+      changedData.completed = [kata.completed, data.completed];
       newData[`${mode}_completed`] = data.completed;
     }
 
     if (data.stars != kata.stars) {
-      const delta = data.stars - kata.stars;
-      text += `\nStars: <b>${data.stars}</b> <i>(${plus(delta)}${delta})</i>.`;
-
+      changedData.stars = [kata.stars, data.stars];
       newData[`${mode}_stars`] = data.stars;
     }
 
-    if (
-      data.totalVoites != kata.totalVoites ||
-      (data.rating != kata.rating && data.totalVoites != 0 && kata.totalVoites)
-    ) {
-      const deltaVoites = data.totalVoites - kata.totalVoites;
-      const deltaVery = data.very - kata.very;
-      const deltaSomewhat = data.somewhat - kata.somewhat;
-      const deltaNot = data.not - kata.not;
-      text += `${text ? '\n' : ''}\
-Rating was changed.
-Votes: <b>${data.totalVoites}</b> <i>(${plus(deltaVoites)}${deltaVoites})</i>
-  Very: <b>${data.very}</b> <i>(${plus(deltaVery)}${deltaVery})</i>
-  Somewhat: <b>${data.somewhat}</b> <i>(${plus(deltaSomewhat)}${deltaSomewhat})</i>
-  Not much: <b>${data.not}</b> <i>(${plus(deltaNot)}${deltaNot})</i>
-
-Rating: <b>${kata.rating.toFixed(2)}%</b> => <b>${data.rating.toFixed(2)}%</b>`;
-
+    if (data.very != kata.very || data.somewhat != kata.somewhat || data.not != kata.not) {
+      changedData.very = [kata.very, data.very];
+      changedData.somewhat = [kata.somewhat, data.somewhat];
+      changedData.not = [kata.not, data.not];
       newData[`${mode}_very`] = data.very;
       newData[`${mode}_somewhat`] = data.somewhat;
       newData[`${mode}_not`] = data.not;
     }
 
-    return text;
+    return History.generateKataText(changedData);
   }
 
   getTimeDelta(oldTime, newTime = new Date()) {
@@ -328,6 +304,45 @@ Rating: <b>${kata.rating.toFixed(2)}%</b> => <b>${data.rating.toFixed(2)}%</b>`;
     stringTime += `${delta.min ? `${delta.min} minutes` : ''}`;
 
     return stringTime.trimEnd();
+  }
+
+  static generateKataText(data) {
+    // data.property[0] - old, data.property[1] - new
+
+    const plus = (delta) => (delta < 0 ? '' : '+');
+    const sign = (num) => plus(num) + num;
+
+    let text = '';
+    if ('completed' in data) {
+      const delta = data.completed[1] - data.completed[0];
+      text += `${text ? '\n' : ''}\
+Completed <b>${data.completed[1]}</b> times <i>(${sign(delta)})</i>`;
+    }
+    if ('stars' in data) {
+      const delta = data.stars[1] - data.stars[0];
+      text += `${text ? '\n' : ''}\
+Stars: <b>${data.stars}</b> <i>(${sign(delta)})</i>.`;
+    }
+    if ('very' in data) {
+      data.totalVoites[1] = data.very[1] + data.somewhat[1] + data.not[1];
+      data.totalVoites[0] = data.very[0] + data.somewhat[0] + data.not[0];
+      data.rating[1] = ((data.very[1] + data.somewhat[1] / 2) / data.totalVoites[1]) * 100;
+      data.rating[0] = ((data.very[0] + data.somewhat[0] / 2) / data.totalVoites[0]) * 100;
+
+      const deltaVoites = data.totalVoites[1] - data.totalVoites[0];
+      const deltaVery = data.very[1] - data.very[0];
+      const deltaSomewhat = data.somewhat[1] - data.somewhat[0];
+      const deltaNot = data.not[1] - data.not[0];
+      text += `${text ? '\n' : ''}\
+Rating was changed.
+Votes: <b>${data.totalVoites[1]}</b> <i>(${sign(deltaVoites)})</i>
+  Very: <b>${data.very[1]}</b> <i>(${sign(deltaVery)})</i>
+  Somewhat: <b>${data.somewhat[1]}</b> <i>(${sign(deltaSomewhat)})</i>
+  Not much: <b>${data.not[1]}</b> <i>(${sign(deltaNot)})</i>
+
+Rating: <b>${data.rating[0].toFixed(2)}%</b> => <b>${data.rating[1].toFixed(2)}%</b>`;
+    }
+    return text;
   }
 }
 
