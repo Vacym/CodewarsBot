@@ -74,6 +74,39 @@ class toin {
     return data;
   }
 
+  static readLastLine(buf) {
+    const { bytes, lineLength } = toin.getPropertiesFtin(buf);
+    const bytesOnLine = lineLength * bytes;
+
+    const data = new Array(lineLength).fill(0);
+    const firstByte = buf.length - bytesOnLine;
+
+    for (let i = 0; i < lineLength; i++) {
+      data[i] = toin.readNumber(buf.subarray(firstByte + i * bytes, firstByte + i * bytes + bytes));
+    }
+    return data;
+  }
+
+  static readLine(buf, bytes) {
+    const lineLength = buf.length / bytes;
+    const data = new Array(lineLength);
+
+    for (let i = 0; i < lineLength; i++) {
+      data[i] = toin.readNumber(buf.subarray(i * bytes, i * bytes + bytes));
+    }
+
+    return data;
+  }
+
+  static readNumber(buf) {
+    let num = 0;
+
+    for (let i = 0; i < buf.length; i++) {
+      num += buf[i] * 256 ** (buf.length - i - 1);
+    }
+    return num;
+  }
+
   static getPropertiesFtin(buf) {
     const negative = Math.trunc(buf[0] / 128);
     const bytes = buf[0] - negative * 128;
