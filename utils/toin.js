@@ -11,15 +11,15 @@
 
 const bufferPrototipe = {
   add(array) {
-    this.buffer = ftin.add(this.buffer, array);
+    this.buffer = toin.add(this.buffer, array);
   },
 };
 
-class ftin {
+class toin {
   open(buffer) {
     const bufObject = {
       buffer,
-      ...ftin.getPropertiesFtin(buffer),
+      ...toin.getPropertiesFtin(buffer),
     };
     Object.setPrototypeOf(bufObject, bufferPrototipe);
 
@@ -51,7 +51,7 @@ class ftin {
   }
 
   static read(buf) {
-    const { bytes, lineLength } = ftin.getPropertiesFtin(buf);
+    const { bytes, lineLength } = toin.getPropertiesFtin(buf);
     const bytesOnLine = lineLength * bytes;
 
     const data = new Array((buf.length - 2) / bytes / lineLength).fill(
@@ -63,7 +63,7 @@ class ftin {
 
       data[itemLine] = line.map((num, itemNum) => {
         const firstBit = 2 + (itemLine * bytesOnLine + itemNum * bytes);
-        const binNum = buf.slice(firstBit, firstBit + bytes);
+        const binNum = buf.subarray(firstBit, firstBit + bytes);
         for (let i = 0; i < bytes; i++) {
           num += buf[2 + (itemLine * bytesOnLine + itemNum * bytes) + i] * 256 ** (bytes - i - 1);
         }
@@ -82,9 +82,8 @@ class ftin {
   }
 
   static add(buf, array) {
-    console.log(ftin.getPropertiesFtin(buf));
-    return Buffer.concat([buf, ftin.create(array, ftin.getPropertiesFtin(buf)).subarray(2)]);
+    return Buffer.concat([buf, toin.create(array, toin.getPropertiesFtin(buf)).subarray(2)]);
   }
 }
 
-export default ftin;
+export default toin;
