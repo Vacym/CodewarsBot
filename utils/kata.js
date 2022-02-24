@@ -67,7 +67,6 @@ class KatasManager {
       (data.somewhat || data.hour_somewhat) ?? 0,
       (data.not || data.hour_not) ?? 0,
       (data.comments || data.hour_comments) ?? 0,
-      (data.issues || data.hour_issues) ?? 0,
     ];
 
     return dataArray;
@@ -145,10 +144,9 @@ class Kata {
           hour_somewhat,  \
           hour_not,       \
           hour_comments,  \
-          hour_issues     \
         ) VALUES ( \
           $1, $2, $3, $4, $5, \
-          $6, $7, $8, $9, $10, $11, $12 \
+          $6, $7, $8, $9, $10, $11 \
         )`,
         values: [
           kataId,
@@ -162,7 +160,6 @@ class Kata {
           kataData.somewhat ?? 0,
           kataData.not ?? 0,
           kataData.comments ?? 0,
-          kataData.issues ?? 0,
         ],
       };
 
