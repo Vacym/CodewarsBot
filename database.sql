@@ -13,8 +13,8 @@ CREATE TABLE arrays (
 );
 
 CREATE FUNCTION split(
-    id     integer, 
-    star   integer, 
+    id     integer,
+    star   integer,
     en     integer,
     offfset integer)
 RETURNS integer AS $$
@@ -58,36 +58,24 @@ CREATE SEQUENCE new_array_id;
 
 CREATE TABLE katas (
     id SERIAL PRIMARY KEY,
-    kata CHAR(24) NOT NULL UNIQUE
+    cid CHAR(24) NOT NULL UNIQUE
 );
 
 CREATE TABLE history (
     kata_id INT UNIQUE,
     followers INT NOT NULL,
 
-    hour BOOL      NOT NULL DEFAULT TRUE,
-    hour_time      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    hour_completed INT NOT NULL DEFAULT 0,
-    hour_stars     INT NOT NULL DEFAULT 0,
-    hour_very      INT NOT NULL DEFAULT 0,
-    hour_somewhat  INT NOT NULL DEFAULT 0,
-    hour_not       INT NOT NULL DEFAULT 0,
+    hour BOOL  NOT NULL DEFAULT TRUE,
+    day BOOL   NOT NULL DEFAULT TRUE,
+    month BOOL NOT NULL DEFAULT TRUE,
 
-    day BOOL      NOT NULL DEFAULT TRUE,
-    day_time      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    day_completed INT NOT NULL DEFAULT 0,
-    day_stars     INT NOT NULL DEFAULT 0,
-    day_very      INT NOT NULL DEFAULT 0,
-    day_somewhat  INT NOT NULL DEFAULT 0,
-    day_not       INT NOT NULL DEFAULT 0,
-
-    month BOOL      NOT NULL DEFAULT TRUE,
-    month_time      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    month_completed INT NOT NULL DEFAULT 0,
-    month_stars     INT NOT NULL DEFAULT 0,
-    month_very      INT NOT NULL DEFAULT 0,
-    month_somewhat  INT NOT NULL DEFAULT 0,
-    month_not       INT NOT NULL DEFAULT 0,
+    time            TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed       INT NOT NULL DEFAULT 0,
+    stars           INT NOT NULL DEFAULT 0,
+    votes_very     INT NOT NULL DEFAULT 0,
+    votes_somewhat INT NOT NULL DEFAULT 0,
+    votes_not      INT NOT NULL DEFAULT 0,
+    comments        INT NOT NULL DEFAULT 0,
 
     FOREIGN KEY (kata_id) REFERENCES katas(id)
 );

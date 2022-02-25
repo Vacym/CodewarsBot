@@ -35,6 +35,10 @@ class dbfs {
     await dbfs.writeFile(path, newFile);
   }
 
+  static async deleteFile(path) {
+    dbx.filesDelete({ path });
+  }
+
   static async getMetadata(path) {
     return (await dbx.filesGetMetadata({ path })).result;
   }

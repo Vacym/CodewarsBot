@@ -226,6 +226,7 @@ class History {
         }
       }
       shortInfo.name = info.name;
+      shortInfo.comments = parseInt(info.comments);
       shortInfo.id = kata;
 
       return shortInfo;
@@ -242,6 +243,11 @@ class History {
       });
 
       info.name = $('.ml-4.mb-3').text();
+      info.comments =
+        $('.icon-moon-comments')
+          .parent()
+          .text()
+          .match(/\((\d+)\)/)?.[1] ?? 0;
     } catch (e) {
       console.error(e);
     }

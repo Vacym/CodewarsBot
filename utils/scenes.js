@@ -6,14 +6,15 @@ import Slar from './sqlArray.js';
 import History from './history.js';
 import kataIsValid from './kataIsValid.js';
 import fetch from 'node-fetch';
+import Kata from './kata.js';
 
 // Scenes
 
 const addKataScene = new Scenes.WizardScene(
   'addKata',
   Telegraf.on('text', async (ctx) => {
-    let kata = kataIsValid(ctx.message.text);
-    if (!kata) {
+    let cid = kataIsValid(ctx.message.text);
+    if (!cid) {
       ctx.reply('Incorrect input format', mainMenuKb());
       return ctx.scene.leave();
     }
@@ -25,17 +26,16 @@ const addKataScene = new Scenes.WizardScene(
       await client.query('BEGIN');
 
       // Checking for the presence of kata in the table
-      const [kataId, arrayId] = (await client.queryLine({
-        text: 'SELECT kata_id, followers FROM history WHERE kata_id IN (SELECT id FROM katas WHERE kata = $1)',
-        values: [kata],
-        rowMode: 'array',
-      })) || [null, null];
 
-      if (kataId) {
+      const kata = new Kata({ cid: cid });
+      await kata.init();
+      sc.kata = kata;
+
+      if (kata.valid) {
         // If this kata is in the table
-        sc.kataId = kataId;
+        await kata.initProperties();
 
-        if (await Slar.includes(ctx.session.userId, arrayId)) {
+        if (await Slar.includes(ctx.session.userId, kata.props.followers)) {
           // If the person has already signed
           ctx.scene.leave();
           ctx.reply('You are already subscribed to this kata', mainMenuKb());
@@ -45,7 +45,7 @@ const addKataScene = new Scenes.WizardScene(
 
       // If the person is not signed or the kata is not in the table
 
-      sc.req = await History.prototype.checkKata(kata);
+      sc.req = await History.prototype.checkKata(cid);
       if (!sc.req.name) {
         // If there is an error in the query
         ctx.reply("We couldn't find this kata.", mainMenuKb());
@@ -73,6 +73,7 @@ The subscription was successful.
 Current kata parameters.
   -Completed: ${req.completed},
   -Stars: ${req.stars},
+  -Comments: ${req.comments}
   -Rating: ${(((req.very + req.somewhat / 2) / votes) * 100).toFixed(2)}%`;
     };
 
@@ -92,19 +93,17 @@ Current kata parameters.
       await client.query('BEGIN');
 
       const req = ctx.scene.state.req;
-      let kataId = ctx.scene.state.kataId;
+      let kata = ctx.scene.state.kata;
 
       const settings = await client.queryLine(`
         SELECT hour, day, month FROM settings WHERE user_id = '${ctx.session.userId}'
       `);
 
-      if (kataId === undefined) {
-        // If the kata is not in the table
+      if (!kata.valid) {
+        // If the kata is not in the database
         const array = await Slar.newArray(ctx.session.userId);
 
-        kataId = await client.queryFirst('INSERT INTO katas (kata) VALUES ($1) RETURNING id', [
-          req.id,
-        ]);
+        kata = await Kata.createKata(req.id, { followers: array.id, ...settings, ...req }, client);
 
         console.log(
           '[New kata add]',
@@ -113,43 +112,10 @@ Current kata parameters.
           '[by]',
           ctx.message.from.id,
           '[id]',
-          kataId
+          kata.id
         );
-
-        const query = {
-          text: `INSERT INTO history ( \
-            kata_id, followers, \
-            hour,           day,           month, \
-            hour_completed, day_completed, month_completed, \
-            hour_stars,     day_stars,     month_stars, \
-            hour_very,      day_very,      month_very, \
-            hour_somewhat,  day_somewhat,  month_somewhat, \
-            hour_not,       day_not,       month_not \
-          ) VALUES ( \
-            $1, $2, $3, $4, $5, \
-            $6, $6, $6, \
-            $7, $7, $7, \
-            $8, $8, $8, \
-            $9, $9, $9, \
-            $10, $10, $10 \
-          )`,
-          values: [
-            kataId,
-            array.id,
-            settings.hour,
-            settings.day,
-            settings.month,
-            req.completed,
-            req.stars,
-            req.very,
-            req.somewhat,
-            req.not,
-          ],
-        };
-
-        await client.query(query);
       } else {
-        // If the kata is on the table
+        // If the kata is on the database
 
         const history = await client.queryLine(
           `
@@ -158,7 +124,7 @@ Current kata parameters.
         FROM history WHERE
           kata_id = $1
         `,
-          [kataId]
+          [kata.id]
         );
 
         const followers = await Slar.getArray(history.followers);
@@ -172,12 +138,12 @@ Current kata parameters.
           ${history.month || settings.month}
         ) WHERE kata_id = $1
         `,
-          [kataId]
+          [kata.id]
         );
       }
 
       const userArray = await client.getKatasOfUser(ctx.session.userId);
-      await userArray.push(kataId);
+      await userArray.push(kata.id);
 
       subscribeResult(req);
 
@@ -202,8 +168,8 @@ addKataScene.enter((ctx) =>
 const deleteKataScene = new Scenes.WizardScene(
   'deleteKata',
   Telegraf.on('text', async (ctx) => {
-    let kata = kataIsValid(ctx.message.text);
-    if (!kata) {
+    let cid = kataIsValid(ctx.message.text);
+    if (!cid) {
       ctx.reply('Incorrect input format', mainMenuKb());
       return ctx.scene.leave();
     }
@@ -216,24 +182,18 @@ const deleteKataScene = new Scenes.WizardScene(
     try {
       await client.query('BEGIN');
 
-      const query = {
-        text: `SELECT followers, kata_id FROM history WHERE kata_id IN (
-          SELECT id FROM katas WHERE kata = $1
-        )`,
-        values: [kata],
-        rowMode: 'array',
-      };
+      sc.kata = new Kata({ cid });
+      await sc.kata.init();
+      await sc.kata.initProperties();
 
-      [sc.arrayId, sc.kataId] = (await client.queryLine(query)) || [];
-
-      if (!(await Slar.includes(ctx.session.userId, sc.arrayId))) {
+      if (!(await Slar.includes(ctx.session.userId, sc.kata.props.followers))) {
         // If the person has not signed
         ctx.reply('You are not subscribed to this kata', mainMenuKb());
         return ctx.scene.leave();
       }
 
       const response = await (
-        await fetch('http://www.codewars.com/api/v1/code-challenges/' + kata)
+        await fetch('http://www.codewars.com/api/v1/code-challenges/' + cid)
       ).json(); // Requesting a kata
 
       // Confirmation request
@@ -262,24 +222,22 @@ const deleteKataScene = new Scenes.WizardScene(
     try {
       await client.query('BEGIN');
 
-      const kataId = ctx.scene.state.kataId;
-      const kataArray = await Slar.getArray(ctx.scene.state.arrayId);
+      const kata = ctx.scene.state.kata;
+      const kataArray = await Slar.getArray(kata.props.followers);
       const userArray = await client.getKatasOfUser(ctx.session.userId);
-      const kata = await client.getKataById(kataId);
 
       // Removing a user from an array
-      await userArray.deleteByName(kataId);
+      await userArray.deleteByName(kata.id);
       await kataArray.deleteByName(ctx.session.userId);
 
       if (kataArray.length === 0) {
         // If he is the only subscriber
-        console.log('[Full delete]', kataId);
-        await client.query(`DELETE FROM history WHERE kata_id = '${kataId}';`);
-        await client.query(`DELETE FROM katas WHERE id = '${kataId}';`);
+        console.log('[Full delete]', kata.id);
+        await kata.delete();
       }
 
       ctx.reply('The unsubscribe was successful', mainMenuKb());
-      console.log('[Kata delete]', kata, '[by]', ctx.message.from.id, '[id]', kataId);
+      console.log('[Kata delete]', kata.cid, '[by]', ctx.message.from.id, '[id]', kata.id);
 
       await client.query('COMMIT');
     } catch (e) {

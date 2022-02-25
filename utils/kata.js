@@ -54,6 +54,10 @@ class KatasManager {
     }
   }
 
+  static async deleteKata(kataId) {
+    dbfs.deleteFile(`/history/lastMonthHistory/${kataId}.toin`);
+  }
+
   static dataToArray(data = {}) {
     function getHours(date) {
       return Math.floor(date / 3600000);
@@ -86,6 +90,12 @@ class Kata {
   async init() {
     this.cid = this.cid || (await PG.getKataById(this.id));
     this.id = this.id || (await PG.getKataIdByCid(this.cid));
+    this.valid = Boolean(this.cid && this.id);
+  }
+  async initProperties() {
+    this.props = this.valid
+      ? await PG.queryLine('SELECT * FROM history WHERE kata_id = $1', [this.id])
+      : {};
   }
 
   async getThisMonthInfo() {
@@ -125,12 +135,31 @@ class Kata {
     }
   }
 
+  async delete() {
+    const client = await PG.getClient();
+
+    try {
+      await client.query('BEGIN');
+
+      await client.query(`DELETE FROM history WHERE kata_id = $1;`, [this.id]);
+      await client.query(`DELETE FROM katas WHERE id = $1;`, [this.id]);
+      await KatasManager.deleteKata(this.id);
+
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   static async createKata(cid, kataData = {}) {
     const client = await PG.getClient();
 
     try {
       await client.query('BEGIN');
-      const kataId = await client.queryFirst('INSERT INTO katas (kata) VALUES ($1) RETURNING id', [
+      const kataId = await client.queryFirst('INSERT INTO katas (cid) VALUES ($1) RETURNING id', [
         cid,
       ]);
 
@@ -138,19 +167,19 @@ class Kata {
         text: `INSERT INTO history ( \
           kata_id, followers, \
           hour, day, month, \
-          hour_completed, \
-          hour_stars,     \
-          hour_very,      \
-          hour_somewhat,  \
-          hour_not,       \
-          hour_comments,  \
+          completed,      \
+          stars,          \
+          votes_very,     \
+          votes_somewhat, \
+          votes_not,      \
+          comments        \
         ) VALUES ( \
           $1, $2, $3, $4, $5, \
           $6, $7, $8, $9, $10, $11 \
         )`,
         values: [
           kataId,
-          kataData.arrayId,
+          kataData.followers,
           kataData.hour ?? true,
           kataData.day ?? true,
           kataData.month ?? true,

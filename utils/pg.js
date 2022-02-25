@@ -1,5 +1,6 @@
 // Connecting the database
 import pkg from 'pg';
+import Slar from './sqlArray.js';
 const { Pool } = pkg;
 
 const pool = new Pool({
@@ -41,12 +42,12 @@ additionalFuncs.queryColumn = async function (text, values) {
 };
 
 additionalFuncs.getKataById = async function (kataId) {
-  const kata = await this.queryFirst(`SELECT kata FROM katas WHERE id = $1`, [kataId]);
-  return kata;
+  const kataCid = await this.queryFirst(`SELECT cid FROM katas WHERE id = $1`, [kataId]);
+  return kataCid;
 };
 additionalFuncs.getKataIdByCid = async function (kataCid) {
-  const kata = await this.queryFirst(`SELECT id FROM katas WHERE kata = $1`, [kataCid]);
-  return kata;
+  const kataId = await this.queryFirst(`SELECT id FROM katas WHERE cid = $1`, [kataCid]);
+  return kataId;
 };
 
 additionalFuncs.getTgById = async function (userId) {
@@ -121,6 +122,8 @@ additionalFuncs.getValidFollowers = async function (arrayId, mode = 'hour') {
   return users.rows.map((val) => val.tg_id);
 };
 
+additionalFuncs.Slar = Slar;
+
 export default {
   async query(text, params) {
     // Use only when only one query is needed
@@ -140,7 +143,13 @@ export default {
     // set a timeout of 5 seconds, after which we will log this client's last query
     const timeout = setTimeout(() => {
       console.warn('[WARNING] A client has been checked out for more than 5 seconds!');
-      console.warn(`The last executed query on this client was: ${client.lastQuery}`);
+      console.warn(
+        `The last executed query on this client was: ${
+          typeof client.lastQuery[0] == 'object'
+            ? [client.lastQuery[0].text, client.lastQuery[0].values]
+            : client.lastQuery[0]
+        }`
+      );
     }, 5000);
     // monkey patch the query method to keep track of the last query executed
     client.query = (...args) => {

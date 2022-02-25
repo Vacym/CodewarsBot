@@ -179,7 +179,11 @@ class SqlArray {
   }
 
   async includes(item, id) {
-    let result = await PG.query(`SELECT Index, Value from arrays WHERE id = $1 AND Value = $2`, [
+    if (item === undefined || id === undefined || item === null || id === null) {
+      return false;
+    }
+
+    let result = await PG.query(`SELECT index, value FROM arrays WHERE id = $1 AND value = $2`, [
       id,
       item,
     ]);
