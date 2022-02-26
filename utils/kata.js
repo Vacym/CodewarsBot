@@ -65,12 +65,12 @@ class KatasManager {
 
     const dataArray = [
       data.hours instanceof Date ? getHours(data.hours) : data.hours ?? getHours(new Date()),
-      (data.completed || data.hour_completed) ?? 0,
-      (data.stars || data.hour_stars) ?? 0,
-      (data.very || data.hour_very) ?? 0,
-      (data.somewhat || data.hour_somewhat) ?? 0,
-      (data.not || data.hour_not) ?? 0,
-      (data.comments || data.hour_comments) ?? 0,
+      data.completed ?? 0,
+      data.stars ?? 0,
+      (data.very || data.votes_very) ?? 0,
+      (data.somewhat || data.votes_somewhat) ?? 0,
+      (data.not || data.votes_not) ?? 0,
+      data.comments ?? 0,
     ];
 
     return dataArray;
@@ -110,21 +110,21 @@ class Kata {
     return await KatasManager.getSpecificLine(this.id, hours);
   }
 
-  async updateInfo(newData = {}) {
+  async updateInfo(changedData = {}, newData) {
     const client = await PG.getClient();
 
     try {
       await client.query('BEGIN');
 
       let query = `
-      UPDATE history SET ${Object.entries(newData)
+      UPDATE history SET ${Object.entries(changedData)
         .map((a) => a[0] + '=' + a[1])
         .join(',')} WHERE kata_id = '${this.id}';
       `;
 
       await client.query(query);
 
-      await KatasManager.updateKata(this.id, newData);
+      await KatasManager.updateKata(this.id, { ...this.props, ...newData, ...changedData });
 
       await client.query('COMMIT');
     } catch (e) {
@@ -185,9 +185,9 @@ class Kata {
           kataData.month ?? true,
           kataData.completed ?? 0,
           kataData.stars ?? 0,
-          kataData.very ?? 0,
-          kataData.somewhat ?? 0,
-          kataData.not ?? 0,
+          kataData.votes_very ?? 0,
+          kataData.votes_somewhat ?? 0,
+          kataData.votes_not ?? 0,
           kataData.comments ?? 0,
         ],
       };
@@ -205,6 +205,14 @@ class Kata {
     } finally {
       client.release();
     }
+  }
+
+  static initKataWithProperties(properties) {
+    const kata = new Kata(properties);
+    kata.valid = true;
+    kata.props = properties;
+
+    return kata;
   }
 }
 

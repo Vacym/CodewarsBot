@@ -145,9 +145,9 @@ export default {
       console.warn('[WARNING] A client has been checked out for more than 5 seconds!');
       console.warn(
         `The last executed query on this client was: ${
-          typeof client.lastQuery[0] == 'object'
+          typeof client.lastQuery?.[0] == 'object'
             ? [client.lastQuery[0].text, client.lastQuery[0].values]
-            : client.lastQuery[0]
+            : client.lastQuery?.[0]
         }`
       );
     }, 5000);

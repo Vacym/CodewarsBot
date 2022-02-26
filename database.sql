@@ -69,13 +69,13 @@ CREATE TABLE history (
     day BOOL   NOT NULL DEFAULT TRUE,
     month BOOL NOT NULL DEFAULT TRUE,
 
-    time            TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    completed       INT NOT NULL DEFAULT 0,
-    stars           INT NOT NULL DEFAULT 0,
+    time           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed      INT NOT NULL DEFAULT 0,
+    stars          INT NOT NULL DEFAULT 0,
     votes_very     INT NOT NULL DEFAULT 0,
     votes_somewhat INT NOT NULL DEFAULT 0,
     votes_not      INT NOT NULL DEFAULT 0,
-    comments        INT NOT NULL DEFAULT 0,
+    comments       INT NOT NULL DEFAULT 0,
 
     FOREIGN KEY (kata_id) REFERENCES katas(id)
 );

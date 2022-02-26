@@ -67,14 +67,14 @@ const addKataScene = new Scenes.WizardScene(
   }),
   Telegraf.on('text', async (ctx) => {
     let textSuccessSubscribe = (req) => {
-      const votes = req.very + req.somewhat + req.not;
+      const votes = req.votes_very + req.votes_somewhat + req.votes_not;
       return `
 The subscription was successful.
 Current kata parameters.
   -Completed: ${req.completed},
   -Stars: ${req.stars},
   -Comments: ${req.comments}
-  -Rating: ${(((req.very + req.somewhat / 2) / votes) * 100).toFixed(2)}%`;
+  -Rating: ${(((req.votes_very + req.votes_somewhat / 2) / votes) * 100).toFixed(2)}%`;
     };
 
     let subscribeResult = (req) => {

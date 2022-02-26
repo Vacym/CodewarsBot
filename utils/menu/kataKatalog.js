@@ -36,7 +36,7 @@ export default [
 
       try {
         const katas = await client.queryColumn(
-          `SELECT kata FROM katas WHERE id IN (
+          `SELECT cid FROM katas WHERE id IN (
               SELECT CAST(value AS INTEGER) FROM arrays WHERE id = (
                 SELECT katas FROM settings WHERE user_id = $1 ORDER BY index ASC
               )

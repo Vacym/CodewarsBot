@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import cherio from 'cherio';
 import PG from './pg.js';
 import Slar from './sqlArray.js';
+import Kata from './kata.js';
 
 // every hour: 00 min
 // every day: 21:00
@@ -23,7 +24,7 @@ class History {
   }
 
   needProperties(mode = 'hour') {
-    return `id, kata, followers, ${mode}_time as time, ${mode}_completed as completed, ${mode}_stars as stars, ${mode}_very as very, ${mode}_somewhat as somewhat, ${mode}_not as not`;
+    return `id, cid, followers, time, completed, stars, votes_very, votes_somewhat, votes_not, comments`;
   }
 
   floatUTCHour(date = new Date()) {
@@ -41,15 +42,16 @@ class History {
     const result = await PG.query(
       `SELECT ${this.needProperties(
         mode
-      )} FROM history, katas WHERE kata_id = id AND ${mode}_time < $1 AND ${mode} = true`,
+      )} FROM history, katas WHERE kata_id = id AND time < $1 AND ${mode} = true`,
       [this.timeOfPreviousCheck(mode).toJSON()]
     );
 
     console.log(result.rowCount, this.timeOfPreviousCheck(mode).toJSON());
 
-    for (const kata of result.rows) {
-      const newInfo = await this.checkKata(kata.kata);
-      await this.updateKata(kata, newInfo, mode);
+    for (const kataProperties of result.rows) {
+      const kata = Kata.initKataWithProperties(kataProperties);
+      const newData = await this.checkKata(kata.cid);
+      await this.updateKata(kata, newData, mode);
     }
 
     const wait = this.timeForNextCheck(mode);
@@ -63,17 +65,6 @@ class History {
     // const waitHour = 2000;
     console.log('hour', this.timeString(+waitHour));
     setTimeout(this.checkAndUpdate.bind(this), waitHour > MINUTES_55 ? 0 : waitHour, 'hour');
-
-    const waitDay = this.timeForNextCheck('day');
-    console.log('day', this.timeString(+waitDay));
-    // console.log(`Next check in ${new Date(waitDay).getMinutes()} minutes`);
-    setTimeout(this.checkAndUpdate.bind(this), waitDay, 'day');
-
-    const waitMonth = this.timeForNextCheck('month');
-    console.log('month', this.timeString(+waitMonth));
-    if (waitMonth < 172800000) {
-      setTimeout(this.checkAndUpdate.bind(this), waitMonth, 'month');
-    }
   }
 
   timeForNextCheck(mode = 'hour') {
@@ -147,41 +138,34 @@ class History {
     await PG.query(`INSERT INTO history (kata_id) VALUES (${kata.kata_id});`);
   }
 
-  async updateKata(kata, data, mode = 'hour') {
-    // kata - kata in database
-    // data - new checked data of kata
-    const newData = {};
+  async updateKata(kata, newData, mode = 'hour') {
+    const changedDbData = {};
     const nowTime = new Date();
-    let text = this.generateChangesTextAndModifyData(kata, data, newData, mode);
-    newData[`${mode}_time`] = `'${nowTime.toISOString()}'`;
+    let text = this.generateChangesTextAndModifyData(kata.props, newData, changedDbData, mode);
+    changedDbData[`time`] = `'${nowTime.toISOString()}'`;
 
     const client = await PG.getClient();
 
     try {
       await client.query('BEGIN');
-      let query = `
-      UPDATE history SET ${Object.entries(newData)
-        .map((a) => a[0] + '=' + a[1])
-        .join(',')} WHERE kata_id = '${kata.id}';
-      `;
 
-      client.query(query);
+      await kata.updateInfo(changedDbData);
 
       if (!text) {
         await client.query('COMMIT');
         return;
       }
 
-      const followers = await client.getValidFollowers(kata.followers, mode);
+      const followers = await client.getValidFollowers(kata.props.followers, mode);
 
       if (followers.length == 0) return;
 
-      console.log('[Text updated]', kata.kata);
+      console.log('[Text updated]', kata.cid);
 
       text =
-        `Changes «<a href="${this.linkKata(kata.kata)}"><b>${
-          data.name
-        }</b></a>» in ${this.timeString(nowTime - kata.time)}.\n` + text;
+        `Changes «<a href="${this.linkKata(kata.cid)}"><b>${
+          newData.name
+        }</b></a>» in ${this.timeString(nowTime - kata.props.time)}.\n` + text;
 
       const options = {
         parse_mode: 'HTML',
@@ -209,15 +193,15 @@ class History {
     }
   }
 
-  async checkKata(kata) {
+  async checkKata(cid) {
     function shorten(info) {
       const shortInfo = {};
       const shortNames = {
         'Total Times Completed': 'completed',
         'Total Stars': 'stars',
-        'Total "Very Satisfied" Votes': 'very',
-        'Total "Somewhat Satisfied" Votes': 'somewhat',
-        'Total "Not Satisfied" Votes': 'not',
+        'Total "Very Satisfied" Votes': 'votes_very',
+        'Total "Somewhat Satisfied" Votes': 'votes_somewhat',
+        'Total "Not Satisfied" Votes': 'votes_not',
       };
 
       for (const oldName in info) {
@@ -227,14 +211,14 @@ class History {
       }
       shortInfo.name = info.name;
       shortInfo.comments = parseInt(info.comments);
-      shortInfo.id = kata;
+      shortInfo.id = cid;
 
       return shortInfo;
     }
 
     const info = {};
     try {
-      const response = await fetch('https://www.codewars.com/kata/' + kata);
+      const response = await fetch('https://www.codewars.com/kata/' + cid);
       const req = await response.text();
       const $ = cherio.load(req);
 
@@ -255,26 +239,35 @@ class History {
     return shorten(info);
   }
 
-  generateChangesTextAndModifyData(kata, data, newData, mode = 'hour') {
+  generateChangesTextAndModifyData(kata, data, newDbData, mode = 'hour') {
     const changedData = [];
 
     if (data.completed != kata.completed) {
       changedData.completed = [kata.completed, data.completed];
-      newData[`${mode}_completed`] = data.completed;
+      newDbData[`completed`] = data.completed;
     }
 
     if (data.stars != kata.stars) {
       changedData.stars = [kata.stars, data.stars];
-      newData[`${mode}_stars`] = data.stars;
+      newDbData[`stars`] = data.stars;
     }
 
-    if (data.very != kata.very || data.somewhat != kata.somewhat || data.not != kata.not) {
-      changedData.very = [kata.very, data.very];
-      changedData.somewhat = [kata.somewhat, data.somewhat];
-      changedData.not = [kata.not, data.not];
-      newData[`${mode}_very`] = data.very;
-      newData[`${mode}_somewhat`] = data.somewhat;
-      newData[`${mode}_not`] = data.not;
+    if (data.comments != kata.comments) {
+      changedData.comments = [kata.comments, data.comments];
+      newDbData[`comments`] = data.comments;
+    }
+
+    if (
+      data.votes_very != kata.votes_very ||
+      data.votes_somewhat != kata.votes_somewhat ||
+      data.votes_not != kata.votes_not
+    ) {
+      changedData.votes_very = [kata.votes_very, data.votes_very];
+      changedData.votes_somewhat = [kata.votes_somewhat, data.votes_somewhat];
+      changedData.votes_not = [kata.votes_not, data.votes_not];
+      newDbData[`votes_very`] = data.votes_very;
+      newDbData[`votes_somewhat`] = data.votes_somewhat;
+      newDbData[`votes_not`] = data.votes_not;
     }
 
     return History.generateKataText(changedData);
@@ -315,6 +308,10 @@ class History {
   static generateKataText(data) {
     // data.property[0] - old, data.property[1] - new
 
+    data.very = data.votes_very;
+    data.somewhat = data.votes_somewhat;
+    data.not = data.votes_not;
+
     const plus = (delta) => (delta < 0 ? '' : '+');
     const sign = (num) => plus(num) + num;
 
@@ -329,7 +326,12 @@ Completed <b>${data.completed[1]}</b> times <i>(${sign(delta)})</i>`;
       text += `${text ? '\n' : ''}\
 Stars: <b>${data.stars[1]}</b> <i>(${sign(delta)})</i>.`;
     }
-    if ('very' in data) {
+    if ('comments' in data) {
+      const delta = data.comments[1] - data.comments[0];
+      text += `${text ? '\n' : ''}\
+Comments: <b>${data.comments[1]}</b> <i>(${sign(delta)})</i>.`;
+    }
+    if ('votes_very' in data) {
       data.totalVoites = [
         data.very[0] + data.somewhat[0] + data.not[0],
         data.very[1] + data.somewhat[1] + data.not[1],
