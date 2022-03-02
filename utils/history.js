@@ -31,19 +31,21 @@ class History {
     return (date / 3600000) % 24;
   }
 
-  isLastDay(dt) {
-    var test = new Date(dt.getTime());
-    test.setDate(test.getDate() + 1);
-    return test.getDate() === 1;
+  isLastDay(date = new Date()) {
+    const mutationDate = new Date(date.getTime());
+    mutationDate.setUTCDate(mutationDate.getUTCDate() + 1);
+    return mutationDate.getUTCDate() === 1;
   }
 
-  async checkAndUpdate(mode = 'hour') {
+  async checkAndUpdate() {
+    const mode = this.determineMode(new Date());
+
     console.log('check', mode);
     const result = await PG.query(
       `SELECT ${this.needProperties(
         mode
       )} FROM history, katas WHERE kata_id = id AND time < $1 AND ${mode} = true`,
-      [this.timeOfPreviousCheck(mode).toJSON()]
+      [this.timeOfPreviousCheck().toJSON()]
     );
 
     console.log(result.rowCount, this.timeOfPreviousCheck(mode).toJSON());
@@ -51,91 +53,96 @@ class History {
     for (const kataProperties of result.rows) {
       const kata = Kata.initKataWithProperties(kataProperties);
       const newData = await this.checkKata(kata.cid);
-      await this.updateKata(kata, newData, mode);
+      await this.sendAndUpdateKata(kata, newData, mode);
     }
 
-    const wait = this.timeForNextCheck(mode);
-    setTimeout(this.checkAndUpdate.bind(this), wait, mode);
+    const wait = this.timeForNextCheck();
+    setTimeout(this.checkAndUpdate.bind(this), wait);
   }
 
   async startTracking() {
     const MINUTES_55 = 3300000;
 
-    const waitHour = this.timeForNextCheck('hour');
+    const waitHour = this.timeForNextCheck();
     // const waitHour = 2000;
     console.log('hour', this.timeString(+waitHour));
-    setTimeout(this.checkAndUpdate.bind(this), waitHour > MINUTES_55 ? 0 : waitHour, 'hour');
+    setTimeout(this.checkAndUpdate.bind(this), waitHour > MINUTES_55 ? 0 : waitHour);
+  }
+
+  determineMode(date) {
+    return date.getUTCHours() == this.HOUR_CHECK
+      ? this.isLastDay(date)
+        ? 'month'
+        : 'day'
+      : 'hour';
   }
 
   timeForNextCheck(mode = 'hour') {
-    if (mode == 'hour') {
-      const nextHour = new Date();
-      nextHour.setUTCHours(nextHour.getUTCHours() + 1);
-      nextHour.setMinutes(0);
-      nextHour.setSeconds(0);
-      return nextHour - new Date();
-    } else if (mode == 'day') {
-      const nowTime = new Date();
-      const hour = new Date(
-        nowTime.getUTCFullYear(),
-        nowTime.getUTCMonth(),
-        nowTime.getUTCDate(),
-        this.HOUR_CHECK,
-        -nowTime.getTimezoneOffset()
-      );
-      if (this.floatUTCHour(nowTime) > this.HOUR_CHECK) {
-        hour.setUTCDate(nowTime.getUTCDate() + 1);
-      }
-      return hour - nowTime;
-    } else if (mode == 'month') {
-      const nowTime = new Date();
-      const increment =
-        this.floatUTCHour(nowTime) > this.HOUR_CHECK && this.isLastDay(nowTime) ? 2 : 1;
-      const lastDay = new Date(
-        nowTime.getUTCFullYear(),
-        nowTime.getUTCMonth() + increment,
-        0,
-        this.HOUR_CHECK,
-        -nowTime.getTimezoneOffset()
-      );
-      return lastDay - nowTime;
-    }
+    const nextHour = new Date();
+    nextHour.setUTCHours(nextHour.getUTCHours() + 1);
+    nextHour.setMinutes(0);
+    nextHour.setSeconds(0);
+    return nextHour - new Date();
   }
 
   timeOfPreviousCheck(mode = 'hour') {
-    if (mode == 'hour') {
-      const nowTime = new Date();
-      const hour = new Date(nowTime.toDateString());
-      hour.setHours(nowTime.getHours());
-      return hour;
-    } else if (mode == 'day') {
-      const nowTime = new Date();
-      const day = new Date(
-        nowTime.getUTCFullYear(),
-        nowTime.getUTCMonth(),
-        nowTime.getUTCDate(),
-        this.HOUR_CHECK,
-        -nowTime.getTimezoneOffset()
-      );
-      if ((nowTime / 3600000) % 24 < this.HOUR_CHECK) {
-        day.setUTCDate(nowTime.getUTCDate() - 1);
-      }
-      return day;
-    } else if (mode == 'month') {
-      const nowTime = new Date();
-      const lastDay = new Date(
-        nowTime.getUTCFullYear(),
-        nowTime.getUTCMonth(),
-        0,
-        0,
-        -nowTime.getTimezoneOffset()
-      );
-      return lastDay;
+    const nowTime = new Date();
+    const hour = new Date(nowTime.toDateString());
+    hour.setHours(nowTime.getHours());
+    return hour;
+  }
+
+  async sendAndUpdateKata(kata, newData, mode = 'hour') {
+    const nowTime = new Date();
+    newData.time = nowTime;
+
+    await this.sendChanges(kata, newData, 'hour', nowTime);
+    if (mode == 'day' || mode == 'month') {
+      await this.sendChanges(kata, newData, 'day', nowTime);
     }
+    if (mode == 'month') {
+      await this.sendChanges(kata, newData, 'month', nowTime);
+    }
+
+    await kata.updateInfo(newData, mode);
   }
 
   async addNewKata(kata) {
     await PG.query(`INSERT INTO history (kata_id) VALUES (${kata.kata_id});`);
+  }
+
+  async sendChanges(kata, newData, mode, nowTime = new Date()) {
+    const followers = await PG.getValidFollowers(kata.props.followers, mode);
+
+    if (followers.length == 0) return;
+
+    const oldData = await kata.getInfo(mode);
+    let text = History.generateKataText(oldData, newData);
+
+    console.log('[Text updated]', kata.cid, newData.name);
+
+    text =
+      `Changes «<a href="${this.linkKata(kata.cid)}"><b>${
+        newData.name
+      }</b></a>» in ${this.timeString(nowTime - oldData.time)}.\n` + text;
+
+    const options = {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    };
+
+    // Sending messages
+
+    for (const follower of followers) {
+      try {
+        await this.bot.telegram.sendMessage(follower, text, options);
+      } catch (e) {
+        if (e.response.error_code != 403) {
+          // If the user hasn't blocked us
+          console.error(e);
+        }
+      }
+    }
   }
 
   async updateKata(kata, newData, mode = 'hour') {
@@ -305,55 +312,59 @@ class History {
     return stringTime.trimEnd();
   }
 
-  static generateKataText(data) {
+  static generateKataText(oldData, newData) {
     // data.property[0] - old, data.property[1] - new
-
-    data.very = data.votes_very;
-    data.somewhat = data.votes_somewhat;
-    data.not = data.votes_not;
 
     const plus = (delta) => (delta < 0 ? '' : '+');
     const sign = (num) => plus(num) + num;
 
     let text = '';
-    if ('completed' in data) {
-      const delta = data.completed[1] - data.completed[0];
-      text += `${text ? '\n' : ''}\
-Completed <b>${data.completed[1]}</b> times <i>(${sign(delta)})</i>`;
-    }
-    if ('stars' in data) {
-      const delta = data.stars[1] - data.stars[0];
-      text += `${text ? '\n' : ''}\
-Stars: <b>${data.stars[1]}</b> <i>(${sign(delta)})</i>.`;
-    }
-    if ('comments' in data) {
-      const delta = data.comments[1] - data.comments[0];
-      text += `${text ? '\n' : ''}\
-Comments: <b>${data.comments[1]}</b> <i>(${sign(delta)})</i>.`;
-    }
-    if ('votes_very' in data) {
-      data.totalVoites = [
-        data.very[0] + data.somewhat[0] + data.not[0],
-        data.very[1] + data.somewhat[1] + data.not[1],
-      ];
-      data.rating = [
-        ((data.very[0] + data.somewhat[0] / 2) / data.totalVoites[0]) * 100,
-        ((data.very[1] + data.somewhat[1] / 2) / data.totalVoites[1]) * 100,
-      ];
 
-      const deltaVoites = data.totalVoites[1] - data.totalVoites[0];
-      const deltaVery = data.very[1] - data.very[0];
-      const deltaSomewhat = data.somewhat[1] - data.somewhat[0];
-      const deltaNot = data.not[1] - data.not[0];
+    if (oldData.completed != newData.completed) {
+      const delta = newData.completed - oldData.completed;
+      text += `${text ? '\n' : ''}\
+Completed <b>${newData.completed}</b> times <i>(${sign(delta)})</i>`;
+    }
+
+    if (oldData.stars != newData.stars) {
+      const delta = newData.stars - oldData.stars;
+      text += `${text ? '\n' : ''}\
+Stars: <b>${newData.stars}</b> <i>(${sign(delta)})</i>.`;
+    }
+
+    if (oldData.comments != newData.comments) {
+      const delta = newData.comments - oldData.comments;
+      text += `${text ? '\n' : ''}\
+Comments: <b>${newData.comments}</b> <i>(${sign(delta)})</i>.`;
+    }
+
+    if (
+      oldData.votes_very != newData.votes_very ||
+      oldData.votes_somewhat != newData.votes_somewhat ||
+      oldData.votes_not != newData.votes_not
+    ) {
+      oldData.totalVotes = oldData.votes_very + oldData.votes_somewhat + oldData.votes_not;
+      newData.totalVotes = newData.votes_very + newData.votes_somewhat + newData.votes_not;
+
+      oldData.rating =
+        ((oldData.votes_very + oldData.votes_somewhat / 2) / oldData.totalVotes) * 100;
+      newData.rating =
+        ((newData.votes_very + newData.votes_somewhat / 2) / newData.totalVotes) * 100;
+
+      const deltaVoites = newData.totalVotes - oldData.totalVotes;
+      const deltaVery = newData.votes_very - oldData.votes_very;
+      const deltaSomewhat = newData.votes_somewhat - oldData.votes_somewhat;
+      const deltaNot = newData.votes_not - oldData.votes_not;
       text += `${text ? '\n' : ''}\
 Rating was changed.
-Votes: <b>${data.totalVoites[1]}</b> <i>(${sign(deltaVoites)})</i>
-  Very: <b>${data.very[1]}</b> <i>(${sign(deltaVery)})</i>
-  Somewhat: <b>${data.somewhat[1]}</b> <i>(${sign(deltaSomewhat)})</i>
-  Not much: <b>${data.not[1]}</b> <i>(${sign(deltaNot)})</i>
+Votes: <b>${newData.totalVotes}</b> <i>(${sign(deltaVoites)})</i>
+  Very: <b>${newData.votes_very}</b> <i>(${sign(deltaVery)})</i>
+  Somewhat: <b>${newData.votes_somewhat}</b> <i>(${sign(deltaSomewhat)})</i>
+  Not much: <b>${newData.votes_not}</b> <i>(${sign(deltaNot)})</i>
 
-Rating: <b>${data.rating[0].toFixed(2)}%</b> => <b>${data.rating[1].toFixed(2)}%</b>`;
+Rating: <b>${oldData.rating.toFixed(2)}%</b> => <b>${newData.rating.toFixed(2)}%</b>`;
     }
+
     return text;
   }
 }

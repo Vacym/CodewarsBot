@@ -29,6 +29,10 @@ class dbfs {
     return await dbx.filesUpload({ path, contents, mode: 'overwrite' });
   }
 
+  static async copyFile(from_path, to_path) {
+    return await dbx.filesCopyV2({ from_path, to_path });
+  }
+
   static async addToFile(path, contents) {
     const oldFile = await dbfs.readFile(path);
     const newFile = Buffer.concat([oldFile, contents]);

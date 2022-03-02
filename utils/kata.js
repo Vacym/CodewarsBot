@@ -14,20 +14,31 @@ import toin from './toin.js';
     [kata_id].toin
 */
 
-class KatasManager {
+function getHours(date) {
+  return Math.floor(date / 3600000);
+}
+
+class KataFilesManager {
   static async createKata(kataId, firstData) {
-    const firstDataArray = KatasManager.dataToArray(firstData);
+    const firstDataArray = KataFilesManager.dataToArray(firstData);
     const firstDataBin = toin.create([firstDataArray], { bits: 32 });
 
     return await dbfs.writeFile(`/history/lastMonthHistory/${kataId}.toin`, firstDataBin);
   }
 
   static async updateKata(kataId, newData) {
-    const newDataArray = KatasManager.dataToArray(newData);
-    const oldDataBin = await KatasManager.getKata(kataId);
+    const newDataArray = KataFilesManager.dataToArray(newData);
+    const oldDataBin = await KataFilesManager.getKata(kataId);
     const addedDataBin = toin.add(oldDataBin, [newDataArray]);
 
     return await dbfs.writeFile(`/history/lastMonthHistory/${kataId}.toin`, addedDataBin);
+  }
+
+  static async archiveKata(kataId, year, month) {
+    return await dbfs.copyFile(
+      `/history/lastMonthHistory/${kataId}.toin`,
+      `/history/monthHistory/${kataId}_${year}_${month}.toin`
+    );
   }
 
   static async getKata(kataId) {
@@ -35,7 +46,7 @@ class KatasManager {
   }
 
   static async getSpecificLine(kataId, hours) {
-    const kataBin = await KatasManager.getKata(kataId);
+    const kataBin = await KataFilesManager.getKata(kataId);
     const { bytes, lineLength } = toin.getPropertiesFtin(kataBin);
     const bytesOnLine = lineLength * bytes;
 
@@ -59,9 +70,7 @@ class KatasManager {
   }
 
   static dataToArray(data = {}) {
-    function getHours(date) {
-      return Math.floor(date / 3600000);
-    }
+    data.hours = data.time;
 
     const dataArray = [
       data.hours instanceof Date ? getHours(data.hours) : data.hours ?? getHours(new Date()),
@@ -74,6 +83,22 @@ class KatasManager {
     ];
 
     return dataArray;
+  }
+
+  static arrayToData(array = []) {
+    const data = {
+      hours: array[0],
+      completed: array[1],
+      stars: array[2],
+      votes_very: array[3],
+      votes_somewhat: array[4],
+      votes_not: array[5],
+      comments: array[6],
+
+      time: new Date(array[0] * 3600000),
+    };
+
+    return data;
   }
 }
 
@@ -99,32 +124,75 @@ class Kata {
   }
 
   async getThisMonthInfo() {
-    return toin.read(await KatasManager.getKata(this.id));
+    return toin.read(await KataFilesManager.getKata(this.id));
   }
 
   async getLastLineInfo() {
-    return toin.readLastLine(await KatasManager.getKata(this.id));
+    return toin.readLastLine(await KataFilesManager.getKata(this.id));
+  }
+
+  async getInfo(mode = 'hour') {
+    switch (mode) {
+      case 'hour':
+        if (this.props === undefined) {
+          await this.initProperties();
+        }
+        return this.props;
+
+      case 'day':
+        return await this.getSpecificLine(getHours(new Date()) - 24);
+
+      case 'month':
+        var firstDay = new Date();
+        firstDay.setUTCDate(1);
+        return await this.getSpecificLine(getHours(firstDay));
+    }
   }
 
   async getSpecificLine(hours) {
-    return await KatasManager.getSpecificLine(this.id, hours);
+    return KataFilesManager.arrayToData(await KataFilesManager.getSpecificLine(this.id, hours));
   }
 
-  async updateInfo(changedData = {}, newData) {
+  async updateInfo(newData, mode) {
     const client = await PG.getClient();
 
     try {
       await client.query('BEGIN');
 
-      let query = `
-      UPDATE history SET ${Object.entries(changedData)
-        .map((a) => a[0] + '=' + a[1])
-        .join(',')} WHERE kata_id = '${this.id}';
-      `;
+      const query = {
+        text: `UPDATE history SET  \
+          time = $1,           \
+          completed = $2,      \
+          stars = $3,          \
+          votes_very = $4,     \
+          votes_somewhat = $5, \
+          votes_not = $6,      \
+          comments = $7        \
+        WHERE kata_id = $8`,
+        values: [
+          newData.time,
+          newData.completed,
+          newData.stars,
+          newData.votes_very,
+          newData.votes_somewhat,
+          newData.votes_not,
+          newData.comments,
+          this.id,
+        ],
+      };
 
       await client.query(query);
 
-      await KatasManager.updateKata(this.id, { ...this.props, ...newData, ...changedData });
+      if (mode == 'month') {
+        await KataFilesManager.archiveKata(
+          this.id,
+          newData.time.getUTCFullYear(),
+          newData.time.getUTCMonth()
+        );
+        await KataFilesManager.createKata(this.id, newData);
+      } else {
+        await KataFilesManager.updateKata(this.id, newData);
+      }
 
       await client.query('COMMIT');
     } catch (e) {
@@ -143,7 +211,7 @@ class Kata {
 
       await client.query(`DELETE FROM history WHERE kata_id = $1;`, [this.id]);
       await client.query(`DELETE FROM katas WHERE id = $1;`, [this.id]);
-      await KatasManager.deleteKata(this.id);
+      await KataFilesManager.deleteKata(this.id);
 
       await client.query('COMMIT');
     } catch (e) {
@@ -194,7 +262,7 @@ class Kata {
 
       await client.query(query);
 
-      await KatasManager.createKata(kataId, kataData);
+      await KataFilesManager.createKata(kataId, kataData);
 
       await client.query('COMMIT');
 
