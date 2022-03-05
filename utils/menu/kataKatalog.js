@@ -10,18 +10,19 @@ async function getKataInfo(kata) {
 }
 
 function getKataText(info) {
-  info.totalVoites = info.hour_very + info.hour_somewhat + info.hour_not;
-  info.rating = ((info.hour_very + info.hour_somewhat / 2) / info.totalVoites) * 100;
+  info.totalVoites = info.votes_very + info.votes_somewhat + info.votes_not;
+  info.rating = ((info.votes_very + info.votes_somewhat / 2) / info.totalVoites) * 100;
 
   return `\
 «<a href="https://www.codewars.com/kata/${info.kata}"><b>${info.name}</b></a>».\n
-Completed <b>${info.hour_completed}</b> times.
-Stars: <b>${info.hour_stars}</b>
-Rating was changed.
+Completed <b>${info.completed}</b> times.
+Stars: <b>${info.stars}</b>
+Comments: <b>${info.comments}</b>
+
 Votes: <b>${info.totalVoites}</b>
-  Very: <b>${info.hour_very}</b>
-  Somewhat: <b>${info.hour_somewhat}</b>
-  Not much: <b>${info.hour_not}</b>
+  Very: <b>${info.votes_very}</b>
+  Somewhat: <b>${info.votes_somewhat}</b>
+  Not much: <b>${info.votes_not}</b>
 
 Rating: <b>${info.rating.toFixed(2)}%</b>`;
 }
@@ -50,8 +51,6 @@ export default [
 
         const newNames = [];
 
-        const last = new Date();
-
         for (const kata of katas) {
           if (ctx.session.kataNames[kata] === undefined) {
             const response = getKataInfo(kata);
@@ -71,7 +70,6 @@ export default [
           return [Markup.button.callback(kata[1], `kata_info:${kata[0]}`)];
         });
 
-        console.log('time:', new Date() - last);
         ctx.editMessageText(
           'Loaded!',
           Markup.inlineKeyboard([...katasKeyboard, [backButton('menu')]])
@@ -94,15 +92,13 @@ export default [
         reply_markup: Markup.inlineKeyboard([backButton('kata_katalog')]).reply_markup,
       };
 
-      console.log(options.reply_markup);
-
       const client = await PG.getClient();
 
       try {
         await client.query('BEGIN');
 
         const kataData = await client.queryLine(
-          `SELECT * FROM history WHERE kata_id = (SELECT id FROM katas WHERE kata = $1)`,
+          `SELECT * FROM history WHERE kata_id = (SELECT id FROM katas WHERE cid = $1)`,
           [kata]
         );
         await send(
@@ -118,8 +114,6 @@ export default [
       } finally {
         client.release();
       }
-
-      console.log(kata);
     },
   ],
 ];
