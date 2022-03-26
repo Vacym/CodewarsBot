@@ -1,8 +1,19 @@
 const kataIsValid = (str) => {
-  // eslint-disable-next-line no-useless-escape
-  let kataId = str.match(/www\.codewars\.com\/kata\/([^\/]+)/);
-  kataId = kataId ? kataId[1] : str; // Link or just id
-  return /^[a-z0-9]{24}$/.test(kataId) ? kataId : null;
+  return /^[a-z0-9]{24}$/.test(str);
 };
 
-export default kataIsValid;
+function convertAuthorOrKata(str) {
+  let reResult = str.match(/www\.codewars\.com\/(\w*)\/([^/]+)/);
+  if (reResult === null || reResult[1] == 'kata') {
+    const isKata = kataIsValid(str) || kataIsValid(reResult?.[2]);
+    if (isKata) {
+      return { type: 'kata', object: reResult?.[2] || str };
+    }
+  }
+  if (reResult === null || reResult[1] == 'users') {
+    return { type: 'users', object: reResult?.[2] || str };
+  }
+  return { type: null, object: null };
+}
+
+export default convertAuthorOrKata;

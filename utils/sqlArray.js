@@ -1,3 +1,7 @@
+// This module will soon be eliminated
+// It is not worth continuing to use it with kata arrays
+// (kata tracking will not work correctly at this time)
+
 import PG from './pg.js';
 
 class SqlArray {

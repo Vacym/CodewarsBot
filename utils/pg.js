@@ -63,6 +63,10 @@ additionalFuncs.getKatasOfUser = async function (userId) {
   return this.Slar.getArray(arrayId);
 };
 
+additionalFuncs.getArrayIdOfUser = async function (userId) {
+  return await this.queryFirst(`SELECT katas FROM settings WHERE user_id = $1`, [userId]);
+};
+
 additionalFuncs.getUserSettings = async function (tgId) {
   return this.queryLine(
     'SELECT * FROM settings WHERE user_id = (SELECT id FROM users WHERE tg_id = $1)',

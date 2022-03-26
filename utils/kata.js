@@ -102,6 +102,19 @@ class KataFilesManager {
   }
 }
 
+class KatasArray extends Array {
+  async addKatasToUser(userId) {
+    for (const kata of this) {
+      const kataFollowers = await Slar.getArray(kata.props.followers);
+      await kataFollowers.push(userId);
+    }
+  }
+
+  get ids() {
+    return Array.from(this.map((kata) => kata.id));
+  }
+}
+
 class Kata {
   constructor(options = {}) {
     // id - kata id in database;
@@ -275,6 +288,16 @@ class Kata {
     }
   }
 
+  static async createKatas(katasData = [], userId) {
+    const newKatas = new KatasArray();
+    for (const kataData of katasData) {
+      const array = await Slar.newArray(userId);
+      const newKata = await Kata.createKata(kataData.id, { followers: array.id, ...kataData });
+      newKatas.push(newKata);
+    }
+    return newKatas;
+  }
+
   static initKataWithProperties(properties) {
     const kata = new Kata(properties);
     kata.valid = true;
@@ -282,6 +305,21 @@ class Kata {
 
     return kata;
   }
+
+  static async getExistingKatas(cids) {
+    const katasRequest = await PG.query(
+      `SELECT * FROM katas, history WHERE id = kata_id and cid IN (${cids.map(
+        (cid) => `'${cid}'`
+      )})`
+    );
+
+    const katas = new KatasArray(
+      ...katasRequest.rows.map((props) => Kata.initKataWithProperties(props))
+    );
+
+    return katas;
+  }
 }
 
 export default Kata;
+export { Kata, KatasArray };

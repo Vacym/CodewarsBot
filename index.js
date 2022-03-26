@@ -6,7 +6,12 @@ import { Telegraf, Scenes } from 'telegraf';
 import { session } from './utils/session.js';
 
 // util libraries
-import { addKataScene, deleteKataScene } from './utils/scenes.js';
+import {
+  addKataScene,
+  deleteKataScene,
+  addAuthorsKatasScene,
+  deleteAuthorsKatasScene,
+} from './utils/scenes.js';
 import { initializeMenu, firstMenu } from './utils/menu/menu.js';
 import { mainMenuKb } from './utils/keyboards.js';
 import History from './utils/history.js';
@@ -21,7 +26,12 @@ const bot = new Telegraf(global.process.env.TOKEN);
 bot.telegram.sendMessage('1278955287', `Starting a ${MODE ? 'remote' : 'local'} server`);
 // Notification for me
 
-const stage = new Scenes.Stage([addKataScene, deleteKataScene]);
+const stage = new Scenes.Stage([
+  addKataScene,
+  deleteKataScene,
+  addAuthorsKatasScene,
+  deleteAuthorsKatasScene,
+]);
 stage.hears('exit', (ctx) => ctx.scene.leave());
 bot.use(session(), stage.middleware(), userManager());
 
@@ -53,6 +63,14 @@ bot.hears('Add kata', async (ctx) => {
 
 bot.hears('Delete kata', async (ctx) => {
   await ctx.scene.enter('deleteKata');
+});
+
+bot.hears("Add author's katas", async (ctx) => {
+  await ctx.scene.enter('addAuthorsKatas');
+});
+
+bot.hears("Delete author's katas", async (ctx) => {
+  await ctx.scene.enter('deleteAuthorsKatas');
 });
 
 initializeMenu(bot);
