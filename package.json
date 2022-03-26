@@ -1,6 +1,6 @@
 {
   "name": "codewarsbot",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Bot for tracking katas at Codewars in Telegram",
   "main": "index.js",
   "scripts": {
@@ -15,6 +15,7 @@
   "license": "MIT",
   "dependencies": {
     "cherio": "^1.0.0-rc.2",
+    "dropbox": "^10.24.0",
     "pg": "^8.7.1",
     "telegraf": "^4.5.2"
   },

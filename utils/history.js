@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import cherio from 'cherio';
 import PG from './pg.js';
 import Slar from './sqlArray.js';
+import Kata from './kata.js';
 
 // every hour: 00 min
 // every day: 21:00
@@ -23,165 +24,155 @@ class History {
   }
 
   needProperties(mode = 'hour') {
-    return `id, kata, followers, ${mode}_time as time, ${mode}_completed as completed, ${mode}_stars as stars, ${mode}_very as very, ${mode}_somewhat as somewhat, ${mode}_not as not`;
+    return `id, cid, followers, time, completed, stars, votes_very, votes_somewhat, votes_not, comments`;
   }
 
   floatUTCHour(date = new Date()) {
     return (date / 3600000) % 24;
   }
 
-  isLastDay(dt) {
-    var test = new Date(dt.getTime());
-    test.setDate(test.getDate() + 1);
-    return test.getDate() === 1;
+  isLastDay(date = new Date()) {
+    const mutationDate = new Date(date.getTime());
+    mutationDate.setUTCDate(mutationDate.getUTCDate() + 1);
+    return mutationDate.getUTCDate() === 1;
   }
 
-  async checkAndUpdate(mode = 'hour') {
+  async checkAndUpdate() {
+    const mode = this.determineMode(new Date());
+
     console.log('check', mode);
     const result = await PG.query(
       `SELECT ${this.needProperties(
         mode
-      )} FROM history, katas WHERE kata_id = id AND ${mode}_time < $1 AND ${mode} = true`,
-      [this.timeOfPreviousCheck(mode).toJSON()]
+      )} FROM history, katas WHERE kata_id = id AND time < $1 AND ${mode} = true`,
+      [this.timeOfPreviousCheck().toJSON()]
     );
 
     console.log(result.rowCount, this.timeOfPreviousCheck(mode).toJSON());
 
-    for (const kata of result.rows) {
-      const newInfo = await this.checkKata(kata.kata);
-      await this.updateKata(kata, newInfo, mode);
+    for (const kataProperties of result.rows) {
+      const kata = Kata.initKataWithProperties(kataProperties);
+      const newData = await this.checkKata(kata.cid);
+      await this.sendAndUpdateKata(kata, newData, mode);
     }
 
-    const wait = this.timeForNextCheck(mode);
-    setTimeout(this.checkAndUpdate.bind(this), wait, mode);
+    const wait = this.timeForNextCheck();
+    setTimeout(this.checkAndUpdate.bind(this), wait);
   }
 
   async startTracking() {
     const MINUTES_55 = 3300000;
 
-    const waitHour = this.timeForNextCheck('hour');
+    const waitHour = this.timeForNextCheck();
     // const waitHour = 2000;
     console.log('hour', this.timeString(+waitHour));
-    setTimeout(this.checkAndUpdate.bind(this), waitHour > MINUTES_55 ? 0 : waitHour, 'hour');
+    setTimeout(this.checkAndUpdate.bind(this), waitHour > MINUTES_55 ? 0 : waitHour);
+  }
 
-    const waitDay = this.timeForNextCheck('day');
-    console.log('day', this.timeString(+waitDay));
-    // console.log(`Next check in ${new Date(waitDay).getMinutes()} minutes`);
-    setTimeout(this.checkAndUpdate.bind(this), waitDay, 'day');
-
-    const waitMonth = this.timeForNextCheck('month');
-    console.log('month', this.timeString(+waitMonth));
-    if (waitMonth < 172800000) {
-      setTimeout(this.checkAndUpdate.bind(this), waitMonth, 'month');
-    }
+  determineMode(date) {
+    return date.getUTCHours() == this.HOUR_CHECK
+      ? this.isLastDay(date)
+        ? 'month'
+        : 'day'
+      : 'hour';
   }
 
   timeForNextCheck(mode = 'hour') {
-    if (mode == 'hour') {
-      const nextHour = new Date();
-      nextHour.setUTCHours(nextHour.getUTCHours() + 1);
-      nextHour.setMinutes(0);
-      nextHour.setSeconds(0);
-      return nextHour - new Date();
-    } else if (mode == 'day') {
-      const nowTime = new Date();
-      const hour = new Date(
-        nowTime.getUTCFullYear(),
-        nowTime.getUTCMonth(),
-        nowTime.getUTCDate(),
-        this.HOUR_CHECK,
-        -nowTime.getTimezoneOffset()
-      );
-      if (this.floatUTCHour(nowTime) > this.HOUR_CHECK) {
-        hour.setUTCDate(nowTime.getUTCDate() + 1);
-      }
-      return hour - nowTime;
-    } else if (mode == 'month') {
-      const nowTime = new Date();
-      const increment =
-        this.floatUTCHour(nowTime) > this.HOUR_CHECK && this.isLastDay(nowTime) ? 2 : 1;
-      const lastDay = new Date(
-        nowTime.getUTCFullYear(),
-        nowTime.getUTCMonth() + increment,
-        0,
-        this.HOUR_CHECK,
-        -nowTime.getTimezoneOffset()
-      );
-      return lastDay - nowTime;
-    }
+    const nextHour = new Date();
+    nextHour.setUTCHours(nextHour.getUTCHours() + 1);
+    nextHour.setMinutes(0);
+    nextHour.setSeconds(0);
+    return nextHour - new Date();
   }
 
   timeOfPreviousCheck(mode = 'hour') {
-    if (mode == 'hour') {
-      const nowTime = new Date();
-      const hour = new Date(nowTime.toDateString());
-      hour.setHours(nowTime.getHours());
-      return hour;
-    } else if (mode == 'day') {
-      const nowTime = new Date();
-      const day = new Date(
-        nowTime.getUTCFullYear(),
-        nowTime.getUTCMonth(),
-        nowTime.getUTCDate(),
-        this.HOUR_CHECK,
-        -nowTime.getTimezoneOffset()
-      );
-      if ((nowTime / 3600000) % 24 < this.HOUR_CHECK) {
-        day.setUTCDate(nowTime.getUTCDate() - 1);
-      }
-      return day;
-    } else if (mode == 'month') {
-      const nowTime = new Date();
-      const lastDay = new Date(
-        nowTime.getUTCFullYear(),
-        nowTime.getUTCMonth(),
-        0,
-        0,
-        -nowTime.getTimezoneOffset()
-      );
-      return lastDay;
+    const nowTime = new Date();
+    const hour = new Date(nowTime.toDateString());
+    hour.setHours(nowTime.getHours());
+    return hour;
+  }
+
+  async sendAndUpdateKata(kata, newData, mode = 'hour') {
+    const nowTime = new Date();
+    newData.time = nowTime;
+
+    await this.sendChanges(kata, newData, 'hour', nowTime);
+    if (mode == 'day' || mode == 'month') {
+      await this.sendChanges(kata, newData, 'day', nowTime);
     }
+    if (mode == 'month') {
+      await this.sendChanges(kata, newData, 'month', nowTime);
+    }
+
+    await kata.updateInfo(newData, mode);
   }
 
   async addNewKata(kata) {
     await PG.query(`INSERT INTO history (kata_id) VALUES (${kata.kata_id});`);
   }
 
-  async updateKata(kata, data, mode = 'hour') {
-    // kata - kata in database
-    // data - new checked data of kata
-    const newData = {};
+  async sendChanges(kata, newData, mode, nowTime = new Date()) {
+    const followers = await PG.getValidFollowers(kata.props.followers, mode);
+
+    if (followers.length == 0) return;
+
+    const oldData = await kata.getInfo(mode);
+    let text = History.generateKataText(oldData, newData);
+
+    console.log('[Text updated]', kata.cid, newData.name);
+
+    text =
+      `Changes «<a href="${this.linkKata(kata.cid)}"><b>${
+        newData.name
+      }</b></a>» in ${this.timeString(nowTime - oldData.time)}.\n` + text;
+
+    const options = {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    };
+
+    // Sending messages
+
+    for (const follower of followers) {
+      try {
+        await this.bot.telegram.sendMessage(follower, text, options);
+      } catch (e) {
+        if (e.response.error_code != 403) {
+          // If the user hasn't blocked us
+          console.error(e);
+        }
+      }
+    }
+  }
+
+  async updateKata(kata, newData, mode = 'hour') {
+    const changedDbData = {};
     const nowTime = new Date();
-    let text = this.generateChangesTextAndModifyData(kata, data, newData, mode);
-    newData[`${mode}_time`] = `'${nowTime.toISOString()}'`;
+    let text = this.generateChangesTextAndModifyData(kata.props, newData, changedDbData, mode);
+    changedDbData[`time`] = `'${nowTime.toISOString()}'`;
 
     const client = await PG.getClient();
 
     try {
       await client.query('BEGIN');
-      let query = `
-      UPDATE history SET ${Object.entries(newData)
-        .map((a) => a[0] + '=' + a[1])
-        .join(',')} WHERE kata_id = '${kata.id}';
-      `;
 
-      client.query(query);
+      await kata.updateInfo(changedDbData);
 
       if (!text) {
         await client.query('COMMIT');
         return;
       }
 
-      const followers = await client.getValidFollowers(kata.followers, mode);
+      const followers = await client.getValidFollowers(kata.props.followers, mode);
 
       if (followers.length == 0) return;
 
-      console.log('[Text updated]', kata.kata);
+      console.log('[Text updated]', kata.cid);
 
       text =
-        `Changes «<a href="${this.linkKata(kata.kata)}"><b>${
-          data.name
-        }</b></a>» in ${this.timeString(nowTime - kata.time)}.\n` + text;
+        `Changes «<a href="${this.linkKata(kata.cid)}"><b>${
+          newData.name
+        }</b></a>» in ${this.timeString(nowTime - kata.props.time)}.\n` + text;
 
       const options = {
         parse_mode: 'HTML',
@@ -209,15 +200,15 @@ class History {
     }
   }
 
-  async checkKata(kata) {
+  async checkKata(cid) {
     function shorten(info) {
       const shortInfo = {};
       const shortNames = {
         'Total Times Completed': 'completed',
         'Total Stars': 'stars',
-        'Total "Very Satisfied" Votes': 'very',
-        'Total "Somewhat Satisfied" Votes': 'somewhat',
-        'Total "Not Satisfied" Votes': 'not',
+        'Total "Very Satisfied" Votes': 'votes_very',
+        'Total "Somewhat Satisfied" Votes': 'votes_somewhat',
+        'Total "Not Satisfied" Votes': 'votes_not',
       };
 
       for (const oldName in info) {
@@ -226,14 +217,15 @@ class History {
         }
       }
       shortInfo.name = info.name;
-      shortInfo.id = kata;
+      shortInfo.comments = parseInt(info.comments);
+      shortInfo.id = cid;
 
       return shortInfo;
     }
 
     const info = {};
     try {
-      const response = await fetch('https://www.codewars.com/kata/' + kata);
+      const response = await fetch('https://www.codewars.com/kata/' + cid);
       const req = await response.text();
       const $ = cherio.load(req);
 
@@ -242,6 +234,11 @@ class History {
       });
 
       info.name = $('.ml-4.mb-3').text();
+      info.comments =
+        $('.icon-moon-comments')
+          .parent()
+          .text()
+          .match(/\((\d+)\)/)?.[1] ?? 0;
     } catch (e) {
       console.error(e);
     }
@@ -249,26 +246,35 @@ class History {
     return shorten(info);
   }
 
-  generateChangesTextAndModifyData(kata, data, newData, mode = 'hour') {
+  generateChangesTextAndModifyData(kata, data, newDbData, mode = 'hour') {
     const changedData = [];
 
     if (data.completed != kata.completed) {
       changedData.completed = [kata.completed, data.completed];
-      newData[`${mode}_completed`] = data.completed;
+      newDbData[`completed`] = data.completed;
     }
 
     if (data.stars != kata.stars) {
       changedData.stars = [kata.stars, data.stars];
-      newData[`${mode}_stars`] = data.stars;
+      newDbData[`stars`] = data.stars;
     }
 
-    if (data.very != kata.very || data.somewhat != kata.somewhat || data.not != kata.not) {
-      changedData.very = [kata.very, data.very];
-      changedData.somewhat = [kata.somewhat, data.somewhat];
-      changedData.not = [kata.not, data.not];
-      newData[`${mode}_very`] = data.very;
-      newData[`${mode}_somewhat`] = data.somewhat;
-      newData[`${mode}_not`] = data.not;
+    if (data.comments != kata.comments) {
+      changedData.comments = [kata.comments, data.comments];
+      newDbData[`comments`] = data.comments;
+    }
+
+    if (
+      data.votes_very != kata.votes_very ||
+      data.votes_somewhat != kata.votes_somewhat ||
+      data.votes_not != kata.votes_not
+    ) {
+      changedData.votes_very = [kata.votes_very, data.votes_very];
+      changedData.votes_somewhat = [kata.votes_somewhat, data.votes_somewhat];
+      changedData.votes_not = [kata.votes_not, data.votes_not];
+      newDbData[`votes_very`] = data.votes_very;
+      newDbData[`votes_somewhat`] = data.votes_somewhat;
+      newDbData[`votes_not`] = data.votes_not;
     }
 
     return History.generateKataText(changedData);
@@ -306,46 +312,59 @@ class History {
     return stringTime.trimEnd();
   }
 
-  static generateKataText(data) {
+  static generateKataText(oldData, newData) {
     // data.property[0] - old, data.property[1] - new
 
     const plus = (delta) => (delta < 0 ? '' : '+');
     const sign = (num) => plus(num) + num;
 
     let text = '';
-    if ('completed' in data) {
-      const delta = data.completed[1] - data.completed[0];
-      text += `${text ? '\n' : ''}\
-Completed <b>${data.completed[1]}</b> times <i>(${sign(delta)})</i>`;
-    }
-    if ('stars' in data) {
-      const delta = data.stars[1] - data.stars[0];
-      text += `${text ? '\n' : ''}\
-Stars: <b>${data.stars[1]}</b> <i>(${sign(delta)})</i>.`;
-    }
-    if ('very' in data) {
-      data.totalVoites = [
-        data.very[0] + data.somewhat[0] + data.not[0],
-        data.very[1] + data.somewhat[1] + data.not[1],
-      ];
-      data.rating = [
-        ((data.very[0] + data.somewhat[0] / 2) / data.totalVoites[0]) * 100,
-        ((data.very[1] + data.somewhat[1] / 2) / data.totalVoites[1]) * 100,
-      ];
 
-      const deltaVoites = data.totalVoites[1] - data.totalVoites[0];
-      const deltaVery = data.very[1] - data.very[0];
-      const deltaSomewhat = data.somewhat[1] - data.somewhat[0];
-      const deltaNot = data.not[1] - data.not[0];
+    if (oldData.completed != newData.completed) {
+      const delta = newData.completed - oldData.completed;
+      text += `${text ? '\n' : ''}\
+Completed <b>${newData.completed}</b> times <i>(${sign(delta)})</i>`;
+    }
+
+    if (oldData.stars != newData.stars) {
+      const delta = newData.stars - oldData.stars;
+      text += `${text ? '\n' : ''}\
+Stars: <b>${newData.stars}</b> <i>(${sign(delta)})</i>.`;
+    }
+
+    if (oldData.comments != newData.comments) {
+      const delta = newData.comments - oldData.comments;
+      text += `${text ? '\n' : ''}\
+Comments: <b>${newData.comments}</b> <i>(${sign(delta)})</i>.`;
+    }
+
+    if (
+      oldData.votes_very != newData.votes_very ||
+      oldData.votes_somewhat != newData.votes_somewhat ||
+      oldData.votes_not != newData.votes_not
+    ) {
+      oldData.totalVotes = oldData.votes_very + oldData.votes_somewhat + oldData.votes_not;
+      newData.totalVotes = newData.votes_very + newData.votes_somewhat + newData.votes_not;
+
+      oldData.rating =
+        ((oldData.votes_very + oldData.votes_somewhat / 2) / oldData.totalVotes) * 100;
+      newData.rating =
+        ((newData.votes_very + newData.votes_somewhat / 2) / newData.totalVotes) * 100;
+
+      const deltaVoites = newData.totalVotes - oldData.totalVotes;
+      const deltaVery = newData.votes_very - oldData.votes_very;
+      const deltaSomewhat = newData.votes_somewhat - oldData.votes_somewhat;
+      const deltaNot = newData.votes_not - oldData.votes_not;
       text += `${text ? '\n' : ''}\
 Rating was changed.
-Votes: <b>${data.totalVoites[1]}</b> <i>(${sign(deltaVoites)})</i>
-  Very: <b>${data.very[1]}</b> <i>(${sign(deltaVery)})</i>
-  Somewhat: <b>${data.somewhat[1]}</b> <i>(${sign(deltaSomewhat)})</i>
-  Not much: <b>${data.not[1]}</b> <i>(${sign(deltaNot)})</i>
+Votes: <b>${newData.totalVotes}</b> <i>(${sign(deltaVoites)})</i>
+  Very: <b>${newData.votes_very}</b> <i>(${sign(deltaVery)})</i>
+  Somewhat: <b>${newData.votes_somewhat}</b> <i>(${sign(deltaSomewhat)})</i>
+  Not much: <b>${newData.votes_not}</b> <i>(${sign(deltaNot)})</i>
 
-Rating: <b>${data.rating[0].toFixed(2)}%</b> => <b>${data.rating[1].toFixed(2)}%</b>`;
+Rating: <b>${oldData.rating.toFixed(2)}%</b> => <b>${newData.rating.toFixed(2)}%</b>`;
     }
+
     return text;
   }
 }

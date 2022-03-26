@@ -1,5 +1,6 @@
 // Connecting the database
 import pkg from 'pg';
+import Slar from './sqlArray.js';
 const { Pool } = pkg;
 
 const pool = new Pool({
@@ -10,6 +11,122 @@ const pool = new Pool({
       }
     : false,
 });
+
+const additionalFuncs = {};
+
+additionalFuncs.queryLine = async function (text, values) {
+  const result = await this.query(text, values);
+  return result.rowCount ? result.rows[0] : null;
+};
+
+additionalFuncs.queryFirst = async function (text, values) {
+  const query = {
+    text,
+    values,
+    rowMode: 'array',
+  };
+  const result = await this.query(query);
+
+  return result.rowCount ? result.rows[0][0] : null;
+};
+
+additionalFuncs.queryColumn = async function (text, values) {
+  const query = {
+    text,
+    values,
+    rowMode: 'array',
+  };
+  const result = await this.query(query);
+
+  return result.rowCount ? result.rows.map((x) => x[0]) : null;
+};
+
+additionalFuncs.getKataById = async function (kataId) {
+  const kataCid = await this.queryFirst(`SELECT cid FROM katas WHERE id = $1`, [kataId]);
+  return kataCid;
+};
+additionalFuncs.getKataIdByCid = async function (kataCid) {
+  const kataId = await this.queryFirst(`SELECT id FROM katas WHERE cid = $1`, [kataCid]);
+  return kataId;
+};
+
+additionalFuncs.getTgById = async function (userId) {
+  const user = await this.queryFirst(`SELECT tg_id FROM users WHERE id = $1`, [userId]);
+  return user;
+};
+
+additionalFuncs.getKatasOfUser = async function (userId) {
+  const arrayId = await this.queryFirst(`SELECT katas FROM settings WHERE user_id = $1`, [
+    String(userId),
+  ]);
+  if (!arrayId) return [];
+  return this.Slar.getArray(arrayId);
+};
+
+additionalFuncs.getArrayIdOfUser = async function (userId) {
+  return await this.queryFirst(`SELECT katas FROM settings WHERE user_id = $1`, [userId]);
+};
+
+additionalFuncs.getUserSettings = async function (tgId) {
+  return this.queryLine(
+    'SELECT * FROM settings WHERE user_id = (SELECT id FROM users WHERE tg_id = $1)',
+    [tgId]
+  );
+};
+
+additionalFuncs.updateUsersKataSettings = async function (userId, mode = 'hour') {
+  const katas = await this.query(
+    `SELECT * from history where kata_id IN (
+      SELECT CAST(value AS INTEGER) FROM arrays WHERE id = (
+        SELECT katas FROM settings WHERE user_id = $1
+      )
+    )`,
+    [userId]
+  );
+
+  let changing_katas = [];
+  for (const kata of katas.rows) {
+    const following = await this.queryFirst(
+      `SELECT true = ANY (
+        SELECT ${mode} FROM settings WHERE user_id IN (
+          SELECT CAST(value AS INTEGER) FROM arrays WHERE id = $1
+        )
+      )`,
+      [kata.followers]
+    );
+
+    if (following != kata[mode]) {
+      changing_katas.push(kata.kata_id);
+    }
+  }
+
+  if (changing_katas.length) {
+    this.query(
+      `UPDATE history SET ${mode} = NOT ${mode} WHERE kata_id IN (${changing_katas.toString()})`
+    );
+  }
+};
+
+additionalFuncs.getValidFollowers = async function (arrayId, mode = 'hour') {
+  const userIds = await this.query(
+    `SELECT user_id FROM settings WHERE user_id IN (
+      SELECT CAST(value AS INTEGER) FROM arrays WHERE id = $1
+    ) AND ${mode} = true`,
+    [arrayId]
+  );
+
+  if (userIds.rowCount == 0) return [];
+
+  const users = await this.query(
+    `SELECT tg_id FROM users WHERE id IN (
+      ${userIds.rows.map((val) => val.user_id).toString()}
+    )`
+  );
+
+  return users.rows.map((val) => val.tg_id);
+};
+
+additionalFuncs.Slar = Slar;
 
 export default {
   async query(text, params) {
@@ -30,7 +147,13 @@ export default {
     // set a timeout of 5 seconds, after which we will log this client's last query
     const timeout = setTimeout(() => {
       console.warn('[WARNING] A client has been checked out for more than 5 seconds!');
-      console.warn(`The last executed query on this client was: ${client.lastQuery}`);
+      console.warn(
+        `The last executed query on this client was: ${
+          typeof client.lastQuery?.[0] == 'object'
+            ? [client.lastQuery[0].text, client.lastQuery[0].values]
+            : client.lastQuery?.[0]
+        }`
+      );
     }, 5000);
     // monkey patch the query method to keep track of the last query executed
     client.query = (...args) => {
@@ -46,116 +169,12 @@ export default {
       return release.apply(client);
     };
 
-    // My own functions
-
-    client.queryLine = async (text, values) => {
-      const result = await client.query(text, values);
-      return result.rowCount ? result.rows[0] : null;
-    };
-
-    client.queryFirst = async (text, values) => {
-      const query = {
-        text,
-        values,
-        rowMode: 'array',
-      };
-      const result = await client.query(query);
-
-      return result.rowCount ? result.rows[0][0] : null;
-    };
-
-    client.queryColumn = async (text, values) => {
-      const query = {
-        text,
-        values,
-        rowMode: 'array',
-      };
-      const result = await client.query(query);
-
-      return result.rowCount ? result.rows.map((x) => x[0]) : null;
-    };
-
-    client.getKataById = async (kataId) => {
-      const kata = await client.queryFirst(`SELECT kata FROM katas WHERE id = $1`, [kataId]);
-      return kata;
-    };
-
-    client.getTgById = async (userId) => {
-      const user = await client.queryFirst(`SELECT tg_id FROM users WHERE id = $1`, [userId]);
-      return user;
-    };
-
-    client.getKatasOfUser = async (userId) => {
-      const arrayId = await client.queryFirst(`SELECT katas FROM settings WHERE user_id = $1`, [
-        String(userId),
-      ]);
-      if (!arrayId) return [];
-      return this.Slar.getArray(arrayId);
-    };
-
-    client.getUserSettings = async (tgId) => {
-      return client.queryLine(
-        'SELECT * FROM settings WHERE user_id = (SELECT id FROM users WHERE tg_id = $1)',
-        [tgId]
-      );
-    };
-
-    client.updateUsersKataSettings = async (userId, mode = 'hour') => {
-      const katas = await client.query(
-        `SELECT * from history where kata_id IN (
-          SELECT CAST(value AS INTEGER) FROM arrays WHERE id = (
-            SELECT katas FROM settings WHERE user_id = $1
-          )
-        )`,
-        [userId]
-      );
-
-      let changing_katas = [];
-      for (const kata of katas.rows) {
-        const following = await client.queryFirst(
-          `SELECT true = ANY (
-            SELECT ${mode} FROM settings WHERE user_id IN (
-              SELECT CAST(value AS INTEGER) FROM arrays WHERE id = $1
-            )
-          )`,
-          [kata.followers]
-        );
-
-        if (following != kata[mode]) {
-          changing_katas.push(kata.kata_id);
-        }
-      }
-
-      if (changing_katas.length) {
-        client.query(
-          `UPDATE history SET ${mode} = NOT ${mode} WHERE kata_id IN (${changing_katas.toString()})`
-        );
-      }
-    };
-
-    client.getValidFollowers = async (arrayId, mode = 'hour') => {
-      const userIds = await client.query(
-        `SELECT user_id FROM settings WHERE user_id IN (
-          SELECT CAST(value AS INTEGER) FROM arrays WHERE id = $1
-        ) AND ${mode} = true`,
-        [arrayId]
-      );
-
-      if (userIds.rowCount == 0) return [];
-
-      const users = await client.query(
-        `SELECT tg_id FROM users WHERE id IN (
-          ${userIds.rows.map((val) => val.user_id).toString()}
-        )`
-      );
-
-      return users.rows.map((val) => val.tg_id);
-    };
+    Object.assign(client, additionalFuncs);
 
     return client;
   },
 
-  Slar: undefined,
+  ...additionalFuncs,
 };
 
 // const client = await PG.getClient();

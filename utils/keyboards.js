@@ -1,7 +1,11 @@
 import { Markup } from 'telegraf';
 
 export function mainMenuKb() {
-  return Markup.keyboard([['Add kata', 'Delete kata'], ['Menu']]).resize();
+  return Markup.keyboard([
+    ['Add kata', 'Delete kata'],
+    ["Add author's katas", "Delete author's katas"],
+    ['Menu'],
+  ]).resize();
 }
 
 export function yesNoKb(yes, no) {
@@ -30,4 +34,8 @@ export function settingsKb(settings) {
     [Markup.button.callback(`Monthly ${settings.month ? '✅' : '❌'}`, 'toggle_month')],
     [backButton('menu')],
   ]);
+}
+
+export function approvedBetaKatasKb() {
+  return Markup.keyboard([['Approved', 'Beta'], ['Both'], ['Neither']]).resize();
 }
