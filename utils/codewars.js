@@ -1,29 +1,29 @@
 import fetch from 'node-fetch';
 import cherio from 'cherio';
 
+const server = 'https://www.codewars.com/';
+
 export default class Codewars {
-  #codewars = 'https://www.codewars.com/';
-
-  getKataLink(cid) {
-    return this.#codewars + 'kata/' + cid;
+  static getKataLink(cid) {
+    return server + 'kata/' + cid;
   }
 
-  getKataAPILink(cid) {
-    return this.#codewars + 'api/v1/code-challenges/' + cid;
+  static getKataAPILink(cid) {
+    return server + 'api/v1/code-challenges/' + cid;
   }
 
-  getAuthorsKatasAPILink(author) {
-    return `${this.#codewars}api/v1/users/${author}/code-challenges/authored`;
+  static getAuthorsKatasAPILink(author) {
+    return `${server}api/v1/users/${author}/code-challenges/authored`;
   }
 
-  async getKataAPIInfo(kata) {
-    return await (await fetch(this.getKataAPILink(kata))).json();
+  static async getKataAPIInfo(cid) {
+    return await (await fetch(Codewars.getKataAPILink(cid))).json();
   }
-  async getAuthorsKatasAPIInfo(author) {
-    return await (await fetch(this.getAuthorsKatasAPILink(author))).json();
+  static async getAuthorsKatasAPIInfo(author) {
+    return await (await fetch(Codewars.getAuthorsKatasAPILink(author))).json();
   }
 
-  async getKataFullInfo(cid) {
+  static async getKataFullInfo(cid) {
     // Retrieves advanced information about the kata from its web page
 
     function shorten(info) {
@@ -50,7 +50,7 @@ export default class Codewars {
 
     const info = {};
     try {
-      const response = await fetch(this.getKataLink(cid));
+      const response = await fetch(Codewars.getKataLink(cid));
       const req = await response.text();
       const $ = cherio.load(req);
 
