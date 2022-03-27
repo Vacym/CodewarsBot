@@ -2,7 +2,8 @@ import fetch from 'node-fetch';
 import cherio from 'cherio';
 import PG from './pg.js';
 import Slar from './sqlArray.js';
-import Kata from './kata.js';
+import Kata from './entities/kata.js';
+import Codewars from './codewars.js';
 
 // every hour: 00 min
 // every day: 21:00
@@ -15,7 +16,7 @@ class History {
   }
 
   linkKata(kata) {
-    return 'https://www.codewars.com/kata/' + kata;
+    return Codewars.getKataLink(kata);
   }
 
   async test() {
@@ -201,49 +202,7 @@ class History {
   }
 
   async checkKata(cid) {
-    function shorten(info) {
-      const shortInfo = {};
-      const shortNames = {
-        'Total Times Completed': 'completed',
-        'Total Stars': 'stars',
-        'Total "Very Satisfied" Votes': 'votes_very',
-        'Total "Somewhat Satisfied" Votes': 'votes_somewhat',
-        'Total "Not Satisfied" Votes': 'votes_not',
-      };
-
-      for (const oldName in info) {
-        if (oldName in shortNames) {
-          shortInfo[shortNames[oldName]] = +info[oldName];
-        }
-      }
-      shortInfo.name = info.name;
-      shortInfo.comments = parseInt(info.comments);
-      shortInfo.id = cid;
-
-      return shortInfo;
-    }
-
-    const info = {};
-    try {
-      const response = await fetch('https://www.codewars.com/kata/' + cid);
-      const req = await response.text();
-      const $ = cherio.load(req);
-
-      $('.w-full.panel.bg-ui-section:last-child tr').each(function () {
-        info[$(this).children(':not(.text-right)').text()] = $(this).children('.text-right').text();
-      });
-
-      info.name = $('.ml-4.mb-3').text();
-      info.comments =
-        $('.icon-moon-comments')
-          .parent()
-          .text()
-          .match(/\((\d+)\)/)?.[1] ?? 0;
-    } catch (e) {
-      console.error(e);
-    }
-
-    return shorten(info);
+    return await Codewars.getKataFullInfo(cid);
   }
 
   generateChangesTextAndModifyData(kata, data, newDbData, mode = 'hour') {

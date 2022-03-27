@@ -4,9 +4,10 @@ import { backButton } from './../keyboards.js';
 import PG from './../pg.js';
 import fetch from 'node-fetch';
 import send from './../send.js';
+import Codewars from './../codewars.js';
 
 async function getKataInfo(kata) {
-  return await (await fetch('http://www.codewars.com/api/v1/code-challenges/' + kata)).json();
+  return await Codewars.getKataAPIInfo(kata);
 }
 
 function getKataText(info) {
@@ -14,7 +15,7 @@ function getKataText(info) {
   info.rating = ((info.votes_very + info.votes_somewhat / 2) / info.totalVoites) * 100;
 
   return `\
-«<a href="https://www.codewars.com/kata/${info.kata}"><b>${info.name}</b></a>».\n
+«<a href="${Codewars.getKataLink(info.kata)}"><b>${info.name}</b></a>».\n
 Completed <b>${info.completed}</b> times.
 Stars: <b>${info.stars}</b>
 Comments: <b>${info.comments}</b>

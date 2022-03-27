@@ -9,6 +9,7 @@ import fetch from 'node-fetch';
 import { Kata, KatasArray } from './kata.js';
 import Author from './author.js';
 import { CodewarsKataArray } from './codewarsKata.js';
+import Codewars from './codewars.js';
 
 // Scenes
 
@@ -200,9 +201,7 @@ const deleteKataScene = new Scenes.WizardScene(
         return ctx.scene.leave();
       }
 
-      const response = await (
-        await fetch('http://www.codewars.com/api/v1/code-challenges/' + cid)
-      ).json(); // Requesting a kata
+      const response = await Codewars.getKataAPIInfo(cid); // Requesting a kata
 
       // Confirmation request
       ctx.reply(`Do you want to unsubscribe from the kata "${response.name}"?`, justYesNoKb());
