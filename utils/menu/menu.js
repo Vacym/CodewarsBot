@@ -3,9 +3,8 @@ import { Markup } from 'telegraf';
 import notificationSettings from './notificationSettings.js';
 import kataKatalog from './kataKatalog.js';
 import information from './information.js';
-import send from './../send.js';
 
-const actions = [];
+import send from './../send.js';
 
 function createAction(trigger, fun) {
   return [

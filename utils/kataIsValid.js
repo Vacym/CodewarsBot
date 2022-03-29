@@ -1,6 +1,6 @@
-const kataIsValid = (str) => {
+function kataIsValid(str) {
   return /^[a-z0-9]{24}$/.test(str);
-};
+}
 
 function convertAuthorOrKata(str) {
   let reResult = str.match(/www\.codewars\.com\/(\w*)\/([^/]+)/);

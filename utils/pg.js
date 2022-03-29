@@ -177,15 +177,17 @@ export default {
   ...additionalFuncs,
 };
 
-// const client = await PG.getClient();
+/*
+const client = await PG.getClient();
 
-// try {
-//   await client.query('BEGIN');
+try {
+  await client.query('BEGIN');
 
-//   await client.query('COMMIT');
-// } catch (e) {
-//   await client.query('ROLLBACK');
-//   throw e;
-// } finally {
-//   client.release();
-// }
+  await client.query('COMMIT');
+} catch (e) {
+  await client.query('ROLLBACK');
+  throw e;
+} finally {
+  client.release();
+}
+*/

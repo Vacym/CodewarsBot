@@ -2,19 +2,15 @@ import { Markup } from 'telegraf';
 
 import { backButton } from './../keyboards.js';
 import PG from './../pg.js';
-import fetch from 'node-fetch';
 import send from './../send.js';
+import Codewars from './../codewars.js';
 
-async function getKataInfo(kata) {
-  return await (await fetch('http://www.codewars.com/api/v1/code-challenges/' + kata)).json();
-}
-
-function getKataText(info) {
+function generateKataText(info) {
   info.totalVoites = info.votes_very + info.votes_somewhat + info.votes_not;
   info.rating = ((info.votes_very + info.votes_somewhat / 2) / info.totalVoites) * 100;
 
   return `\
-«<a href="https://www.codewars.com/kata/${info.kata}"><b>${info.name}</b></a>».\n
+«<a href="${Codewars.getKataLink(info.kata)}"><b>${info.name}</b></a>».\n
 Completed <b>${info.completed}</b> times.
 Stars: <b>${info.stars}</b>
 Comments: <b>${info.comments}</b>
@@ -53,7 +49,7 @@ export default [
 
         for (const kata of katas) {
           if (ctx.session.kataNames[kata] === undefined) {
-            const response = getKataInfo(kata);
+            const response = Codewars.getKataAPIInfo(kata);
             newNames.push(response);
           }
         }
@@ -103,7 +99,7 @@ export default [
         );
         await send(
           ctx,
-          getKataText({ ...kataData, kata: kata, name: ctx.session.kataNames[kata] }),
+          generateKataText({ ...kataData, kata: kata, name: ctx.session.kataNames[kata] }),
           options
         );
 

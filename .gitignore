@@ -13,7 +13,5 @@ Dockerfile
 docker-compose.yml
 
 # Self
-.prettierrc
-.eslintrc.json
 once.js
 env.js
