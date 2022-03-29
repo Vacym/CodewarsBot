@@ -1,14 +1,10 @@
-import { Telegraf, session, Scenes, Markup } from 'telegraf';
-import { mainMenuKb, removeKd, justYesNoKb, approvedBetaKatasKb } from './../keyboards.js';
+import { Telegraf, Scenes } from 'telegraf';
+import { mainMenuKb, removeKd, justYesNoKb } from './../keyboards.js';
 
 import PG from './../pg.js';
 import Slar from './../sqlArray.js';
-import History from './../history.js';
 import convertAuthorOrKata from './../kataIsValid.js';
-import fetch from 'node-fetch';
-import { Kata, KatasArray } from './../entities/kata.js';
-import Author from './../entities/author.js';
-import { CodewarsKataArray } from './../entities/codewarsKata.js';
+import { Kata } from './../entities/kata.js';
 import Codewars from './../codewars.js';
 
 const addKataScene = new Scenes.WizardScene(
@@ -48,7 +44,7 @@ const addKataScene = new Scenes.WizardScene(
 
       // If the person is not signed or the kata is not in the table
 
-      sc.req = await History.prototype.checkKata(cid);
+      sc.req = await Codewars.getKataFullInfo(cid);
       if (!sc.req.name) {
         // If there is an error in the query
         ctx.reply("We couldn't find this kata.", mainMenuKb());
@@ -82,7 +78,6 @@ const addKataScene = new Scenes.WizardScene(
 
     let subscribeResult = (req) => {
       ctx.reply(textSuccessSubscribe(req), mainMenuKb());
-      // tracking.addKata(req.id);
     };
 
     if (ctx.message.text != 'Yes') {

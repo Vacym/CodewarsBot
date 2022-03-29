@@ -1,11 +1,8 @@
-import { Telegraf, session, Scenes, Markup } from 'telegraf';
-import { mainMenuKb, removeKd, justYesNoKb, approvedBetaKatasKb } from './../keyboards.js';
+import { Telegraf, Scenes } from 'telegraf';
+import { mainMenuKb, removeKd, approvedBetaKatasKb } from './../keyboards.js';
 
 import PG from './../pg.js';
-import Slar from './../sqlArray.js';
-import History from './../history.js';
 import convertAuthorOrKata from './../kataIsValid.js';
-import fetch from 'node-fetch';
 import { Kata, KatasArray } from './../entities/kata.js';
 import Author from './../entities/author.js';
 import { CodewarsKataArray } from './../entities/codewarsKata.js';
@@ -94,7 +91,8 @@ const addAuthorsKatasScene = new Scenes.WizardScene(
 
     const dataOfNewKatas = [];
     for (const cid of katasCidsForCreate) {
-      dataOfNewKatas.push(await History.prototype.checkKata(cid));
+      //BOTTLENECK
+      dataOfNewKatas.push(await Codewars.getKataFullInfo(cid));
     }
 
     await katasForUpdate.addKatasToUser(ctx.session.userId);
@@ -196,6 +194,8 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
     return ctx.scene.leave();
   })
 );
+
+// TO DO: minimize code duplication
 
 deleteAuthorsKatasScene.enter((ctx) => ctx.reply('Enter author', removeKd()));
 

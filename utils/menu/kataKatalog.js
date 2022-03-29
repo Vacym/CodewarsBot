@@ -2,15 +2,10 @@ import { Markup } from 'telegraf';
 
 import { backButton } from './../keyboards.js';
 import PG from './../pg.js';
-import fetch from 'node-fetch';
 import send from './../send.js';
 import Codewars from './../codewars.js';
 
-async function getKataInfo(kata) {
-  return await Codewars.getKataAPIInfo(kata);
-}
-
-function getKataText(info) {
+function generateKataText(info) {
   info.totalVoites = info.votes_very + info.votes_somewhat + info.votes_not;
   info.rating = ((info.votes_very + info.votes_somewhat / 2) / info.totalVoites) * 100;
 
@@ -54,7 +49,7 @@ export default [
 
         for (const kata of katas) {
           if (ctx.session.kataNames[kata] === undefined) {
-            const response = getKataInfo(kata);
+            const response = Codewars.getKataAPIInfo(kata);
             newNames.push(response);
           }
         }
@@ -104,7 +99,7 @@ export default [
         );
         await send(
           ctx,
-          getKataText({ ...kataData, kata: kata, name: ctx.session.kataNames[kata] }),
+          generateKataText({ ...kataData, kata: kata, name: ctx.session.kataNames[kata] }),
           options
         );
 

@@ -1,7 +1,4 @@
-import fetch from 'node-fetch';
-import cherio from 'cherio';
 import PG from './pg.js';
-import Slar from './sqlArray.js';
 import Kata from './entities/kata.js';
 import Codewars from './codewars.js';
 
@@ -15,27 +12,12 @@ class History {
     this.HOUR_CHECK = 18;
   }
 
-  linkKata(kata) {
-    return Codewars.getKataLink(kata);
-  }
+  async startTracking() {
+    const MINUTES_55 = 3300000;
+    const waitHour = this.timeForNextCheck();
 
-  async test() {
-    let result = await PG.query('SELECT * FROM katas');
-    console.log(result);
-  }
-
-  needProperties(mode = 'hour') {
-    return `id, cid, followers, time, completed, stars, votes_very, votes_somewhat, votes_not, comments`;
-  }
-
-  floatUTCHour(date = new Date()) {
-    return (date / 3600000) % 24;
-  }
-
-  isLastDay(date = new Date()) {
-    const mutationDate = new Date(date.getTime());
-    mutationDate.setUTCDate(mutationDate.getUTCDate() + 1);
-    return mutationDate.getUTCDate() === 1;
+    console.log('hour', this.timeString(+waitHour));
+    setTimeout(this.checkAndUpdate.bind(this), waitHour > MINUTES_55 ? 0 : waitHour);
   }
 
   async checkAndUpdate() {
@@ -52,8 +34,9 @@ class History {
     console.log(result.rowCount, this.timeOfPreviousCheck(mode).toJSON());
 
     for (const kataProperties of result.rows) {
+      //BOTTLENECK
       const kata = Kata.initKataWithProperties(kataProperties);
-      const newData = await this.checkKata(kata.cid);
+      const newData = await Codewars.getKataFullInfo(kata.cid);
       await this.sendAndUpdateKata(kata, newData, mode);
     }
 
@@ -61,13 +44,54 @@ class History {
     setTimeout(this.checkAndUpdate.bind(this), wait);
   }
 
-  async startTracking() {
-    const MINUTES_55 = 3300000;
+  async sendAndUpdateKata(kata, newData, mode = 'hour') {
+    const nowTime = new Date();
+    newData.time = nowTime;
 
-    const waitHour = this.timeForNextCheck();
-    // const waitHour = 2000;
-    console.log('hour', this.timeString(+waitHour));
-    setTimeout(this.checkAndUpdate.bind(this), waitHour > MINUTES_55 ? 0 : waitHour);
+    await this.sendChanges(kata, newData, 'hour', nowTime);
+    if (mode == 'day' || mode == 'month') {
+      await this.sendChanges(kata, newData, 'day', nowTime);
+    }
+    if (mode == 'month') {
+      await this.sendChanges(kata, newData, 'month', nowTime);
+    }
+
+    await kata.updateInfo(newData, mode);
+  }
+
+  async sendChanges(kata, newData, mode, nowTime = new Date()) {
+    const followers = await PG.getValidFollowers(kata.props.followers, mode);
+
+    if (followers.length == 0) return;
+
+    const oldData = await kata.getInfo(mode);
+    let text = History.generateKataText(oldData, newData);
+
+    console.log('[Text updated]', kata.cid, newData.name);
+
+    text =
+      `Changes «<a href="${Codewars.getKataLink(kata.cid)}"><b>${
+        newData.name
+      }</b></a>» in ${this.timeString(nowTime - oldData.time)}.\n` + text;
+
+    const options = {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    };
+
+    // Sending messages
+
+    for (const follower of followers) {
+      //BOTTLENECK
+      try {
+        await this.bot.telegram.sendMessage(follower, text, options);
+      } catch (e) {
+        if (e.response.error_code != 403) {
+          // If the user hasn't blocked us
+          console.error(e);
+        }
+      }
+    }
   }
 
   determineMode(date) {
@@ -91,156 +115,6 @@ class History {
     const hour = new Date(nowTime.toDateString());
     hour.setHours(nowTime.getHours());
     return hour;
-  }
-
-  async sendAndUpdateKata(kata, newData, mode = 'hour') {
-    const nowTime = new Date();
-    newData.time = nowTime;
-
-    await this.sendChanges(kata, newData, 'hour', nowTime);
-    if (mode == 'day' || mode == 'month') {
-      await this.sendChanges(kata, newData, 'day', nowTime);
-    }
-    if (mode == 'month') {
-      await this.sendChanges(kata, newData, 'month', nowTime);
-    }
-
-    await kata.updateInfo(newData, mode);
-  }
-
-  async addNewKata(kata) {
-    await PG.query(`INSERT INTO history (kata_id) VALUES (${kata.kata_id});`);
-  }
-
-  async sendChanges(kata, newData, mode, nowTime = new Date()) {
-    const followers = await PG.getValidFollowers(kata.props.followers, mode);
-
-    if (followers.length == 0) return;
-
-    const oldData = await kata.getInfo(mode);
-    let text = History.generateKataText(oldData, newData);
-
-    console.log('[Text updated]', kata.cid, newData.name);
-
-    text =
-      `Changes «<a href="${this.linkKata(kata.cid)}"><b>${
-        newData.name
-      }</b></a>» in ${this.timeString(nowTime - oldData.time)}.\n` + text;
-
-    const options = {
-      parse_mode: 'HTML',
-      disable_web_page_preview: true,
-    };
-
-    // Sending messages
-
-    for (const follower of followers) {
-      try {
-        await this.bot.telegram.sendMessage(follower, text, options);
-      } catch (e) {
-        if (e.response.error_code != 403) {
-          // If the user hasn't blocked us
-          console.error(e);
-        }
-      }
-    }
-  }
-
-  async updateKata(kata, newData, mode = 'hour') {
-    const changedDbData = {};
-    const nowTime = new Date();
-    let text = this.generateChangesTextAndModifyData(kata.props, newData, changedDbData, mode);
-    changedDbData[`time`] = `'${nowTime.toISOString()}'`;
-
-    const client = await PG.getClient();
-
-    try {
-      await client.query('BEGIN');
-
-      await kata.updateInfo(changedDbData);
-
-      if (!text) {
-        await client.query('COMMIT');
-        return;
-      }
-
-      const followers = await client.getValidFollowers(kata.props.followers, mode);
-
-      if (followers.length == 0) return;
-
-      console.log('[Text updated]', kata.cid);
-
-      text =
-        `Changes «<a href="${this.linkKata(kata.cid)}"><b>${
-          newData.name
-        }</b></a>» in ${this.timeString(nowTime - kata.props.time)}.\n` + text;
-
-      const options = {
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      };
-
-      // Sending messages
-
-      for (const follower of followers) {
-        try {
-          this.bot.telegram.sendMessage(follower, text, options);
-        } catch (e) {
-          if (e.response.error_code != 403) {
-            // If the user hasn't blocked us
-            console.error(e);
-          }
-        }
-      }
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      console.error(e);
-    } finally {
-      client.release();
-    }
-  }
-
-  async checkKata(cid) {
-    return await Codewars.getKataFullInfo(cid);
-  }
-
-  generateChangesTextAndModifyData(kata, data, newDbData, mode = 'hour') {
-    const changedData = [];
-
-    if (data.completed != kata.completed) {
-      changedData.completed = [kata.completed, data.completed];
-      newDbData[`completed`] = data.completed;
-    }
-
-    if (data.stars != kata.stars) {
-      changedData.stars = [kata.stars, data.stars];
-      newDbData[`stars`] = data.stars;
-    }
-
-    if (data.comments != kata.comments) {
-      changedData.comments = [kata.comments, data.comments];
-      newDbData[`comments`] = data.comments;
-    }
-
-    if (
-      data.votes_very != kata.votes_very ||
-      data.votes_somewhat != kata.votes_somewhat ||
-      data.votes_not != kata.votes_not
-    ) {
-      changedData.votes_very = [kata.votes_very, data.votes_very];
-      changedData.votes_somewhat = [kata.votes_somewhat, data.votes_somewhat];
-      changedData.votes_not = [kata.votes_not, data.votes_not];
-      newDbData[`votes_very`] = data.votes_very;
-      newDbData[`votes_somewhat`] = data.votes_somewhat;
-      newDbData[`votes_not`] = data.votes_not;
-    }
-
-    return History.generateKataText(changedData);
-  }
-
-  getTimeDelta(oldTime, newTime = new Date()) {
-    return Math.abs(newTime - oldTime);
   }
 
   timeString(milliseconds, round = true, options) {
@@ -269,6 +143,20 @@ class History {
     stringTime += `${delta.min ? `${delta.min} minutes` : ''}`;
 
     return stringTime.trimEnd();
+  }
+
+  needProperties() {
+    return `id, cid, followers, time, completed, stars, votes_very, votes_somewhat, votes_not, comments`;
+  }
+
+  floatUTCHour(date = new Date()) {
+    return (date / 3600000) % 24;
+  }
+
+  isLastDay(date = new Date()) {
+    const mutationDate = new Date(date.getTime());
+    mutationDate.setUTCDate(mutationDate.getUTCDate() + 1);
+    return mutationDate.getUTCDate() === 1;
   }
 
   static generateKataText(oldData, newData) {

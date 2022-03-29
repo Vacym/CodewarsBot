@@ -4,35 +4,31 @@ const ADMINS = JSON.parse(process.env.ADMINS);
 // bot libraries
 import { Telegraf, Scenes } from 'telegraf';
 import { session } from './utils/session.js';
+import userManager from './utils/userManager.js';
 
 // util libraries
-import {
-  addKataScene,
-  deleteKataScene,
-  addAuthorsKatasScene,
-  deleteAuthorsKatasScene,
-} from './utils/scenes.js';
+import * as scenes from './utils/scenes.js';
 import { initializeMenu, firstMenu } from './utils/menu/menu.js';
 import { mainMenuKb } from './utils/keyboards.js';
 import History from './utils/history.js';
 import PG from './utils/pg.js';
 import Slar from './utils/sqlArray.js';
-import userManager from './utils/userManager.js';
 PG.Slar = Slar;
 
 // Running the bot
 
 const bot = new Telegraf(global.process.env.TOKEN);
-bot.telegram.sendMessage('1278955287', `Starting a ${MODE ? 'remote' : 'local'} server`);
+bot.telegram.sendMessage(ADMINS[0], `Starting a ${MODE ? 'remote' : 'local'} server`);
 // Notification for me
 
 const stage = new Scenes.Stage([
-  addKataScene,
-  deleteKataScene,
-  addAuthorsKatasScene,
-  deleteAuthorsKatasScene,
+  scenes.addKataScene,
+  scenes.deleteKataScene,
+  scenes.addAuthorsKatasScene,
+  scenes.deleteAuthorsKatasScene,
 ]);
 stage.hears('exit', (ctx) => ctx.scene.leave());
+
 bot.use(session(), stage.middleware(), userManager());
 
 const history = new History(bot);

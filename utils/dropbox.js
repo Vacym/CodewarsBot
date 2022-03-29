@@ -1,6 +1,5 @@
 import { Dropbox } from 'dropbox';
 import fetch from 'node-fetch';
-import './../env.js';
 
 const dbx = new Dropbox({
   refreshToken: global.process.env.DROPBOX_REFRESH_TOKEN,
