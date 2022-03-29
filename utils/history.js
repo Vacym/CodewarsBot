@@ -60,7 +60,7 @@ class History {
   }
 
   async sendChanges(kata, newData, mode, nowTime = new Date()) {
-    const followers = await PG.getValidFollowers(kata.props.followers, mode);
+    const followers = await PG.getValidFollowers(kata.followers, mode);
 
     if (followers.length == 0) return;
 

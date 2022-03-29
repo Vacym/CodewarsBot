@@ -105,7 +105,7 @@ class KataFilesManager {
 class KatasArray extends Array {
   async addKatasToUser(userId) {
     for (const kata of this) {
-      const kataFollowers = await Slar.getArray(kata.props.followers);
+      const kataFollowers = await Slar.getArray(kata.followers);
       await kataFollowers.push(userId);
     }
   }
@@ -121,19 +121,28 @@ class Kata {
     // cid - kata id in Codewars;
     // Shuld be at least one of them
 
+    if ('id' in options === 'cid' in options) {
+      throw 'Exactly one of the parameters shuld be defined';
+    }
+
     this.cid = options.cid;
     this.id = options.id;
   }
 
   async init() {
-    this.cid = this.cid || (await PG.getKataById(this.id));
-    this.id = this.id || (await PG.getKataIdByCid(this.cid));
+    Object.assign(
+      this,
+      this.id
+        ? await PG.queryLine(
+            'SELECT * FROM history, katas WHERE history.kata_id = katas.id AND id = $1',
+            [this.id]
+          )
+        : await PG.queryLine(
+            'SELECT * FROM history, katas WHERE history.kata_id = katas.id AND cid = $1',
+            [this.cid]
+          )
+    );
     this.valid = Boolean(this.cid && this.id);
-  }
-  async initProperties() {
-    this.props = this.valid
-      ? await PG.queryLine('SELECT * FROM history WHERE kata_id = $1', [this.id])
-      : {};
   }
 
   async getThisMonthInfo() {
@@ -147,10 +156,7 @@ class Kata {
   async getInfo(mode = 'hour') {
     switch (mode) {
       case 'hour':
-        if (this.props === undefined) {
-          await this.initProperties();
-        }
-        return this.props;
+        return this;
 
       case 'day':
         return await this.getSpecificLine(getHours(new Date()) - 24);
@@ -279,7 +285,7 @@ class Kata {
 
       await client.query('COMMIT');
 
-      return new Kata({ id: kataId, cid });
+      return new Kata({ id: kataId });
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -291,6 +297,7 @@ class Kata {
   static async createKatas(katasData = [], userId) {
     const newKatas = new KatasArray();
     for (const kataData of katasData) {
+      //BOTTLENECK
       const array = await Slar.newArray(userId);
       const newKata = await Kata.createKata(kataData.id, { followers: array.id, ...kataData });
       newKatas.push(newKata);
@@ -299,9 +306,11 @@ class Kata {
   }
 
   static initKataWithProperties(properties) {
-    const kata = new Kata(properties);
+    const kata = new Kata({ id: properties.id });
     kata.valid = true;
-    kata.props = properties;
+    Object.assign(kata, properties);
+
+    // TO DO: adequate initialization
 
     return kata;
   }
@@ -314,7 +323,7 @@ class Kata {
     );
 
     const katas = new KatasArray(
-      ...katasRequest.rows.map((props) => Kata.initKataWithProperties(props))
+      ...katasRequest.rows.map((properties) => Kata.initKataWithProperties(properties))
     );
 
     return katas;

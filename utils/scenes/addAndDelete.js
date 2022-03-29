@@ -32,9 +32,8 @@ const addKataScene = new Scenes.WizardScene(
 
       if (kata.valid) {
         // If this kata is in the table
-        await kata.initProperties();
 
-        if (await Slar.includes(ctx.session.userId, kata.props.followers)) {
+        if (await Slar.includes(ctx.session.userId, kata.followers)) {
           // If the person has already signed
           ctx.scene.leave();
           ctx.reply('You are already subscribed to this kata', mainMenuKb());
@@ -184,9 +183,8 @@ const deleteKataScene = new Scenes.WizardScene(
 
       sc.kata = new Kata({ cid });
       await sc.kata.init();
-      await sc.kata.initProperties();
 
-      if (!(await Slar.includes(ctx.session.userId, sc.kata.props.followers))) {
+      if (!(await Slar.includes(ctx.session.userId, sc.kata.followers))) {
         // If the person has not signed
         ctx.reply('You are not subscribed to this kata', mainMenuKb());
         return ctx.scene.leave();
@@ -221,7 +219,7 @@ const deleteKataScene = new Scenes.WizardScene(
       await client.query('BEGIN');
 
       const kata = ctx.scene.state.kata;
-      const kataArray = await Slar.getArray(kata.props.followers);
+      const kataArray = await Slar.getArray(kata.followers);
       const userArray = await client.getKatasOfUser(ctx.session.userId);
 
       // Removing a user from an array
