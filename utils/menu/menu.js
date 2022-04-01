@@ -13,11 +13,7 @@ function createAction(trigger, fun) {
       try {
         await fun(ctx);
       } catch (e) {
-        if (e.response.error_code == 400) {
-          console.error(e.response.description);
-        } else {
-          console.error(e);
-        }
+        console.error(e);
       }
     },
   ];

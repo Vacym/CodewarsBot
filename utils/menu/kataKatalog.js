@@ -32,14 +32,7 @@ export default [
       const client = await PG.getClient();
 
       try {
-        const katas = await client.queryColumn(
-          `SELECT cid FROM katas WHERE id IN (
-              SELECT CAST(value AS INTEGER) FROM arrays WHERE id = (
-                SELECT katas FROM settings WHERE user_id = $1 ORDER BY index ASC
-              )
-            )`,
-          [1]
-        );
+        const kataCids = await ctx.session.user.getKataCids();
 
         if (ctx.session.kataNames === undefined) {
           ctx.session.kataNames = {};
@@ -47,9 +40,9 @@ export default [
 
         const newNames = [];
 
-        for (const kata of katas) {
-          if (ctx.session.kataNames[kata] === undefined) {
-            const response = Codewars.getKataAPIInfo(kata);
+        for (const cid of kataCids) {
+          if (ctx.session.kataNames[cid] === undefined) {
+            const response = Codewars.getKataAPIInfo(cid);
             newNames.push(response);
           }
         }

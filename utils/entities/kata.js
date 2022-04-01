@@ -103,10 +103,10 @@ class KataFilesManager {
 }
 
 class KatasArray extends Array {
-  async addKatasToUser(userId) {
+  async updateState() {
     for (const kata of this) {
-      const kataFollowers = await Slar.getArray(kata.followers);
-      await kataFollowers.push(userId);
+      //BOTTLENECK
+      await kata.updateState();
     }
   }
 
@@ -172,6 +172,10 @@ class Kata {
     return KataFilesManager.arrayToData(await KataFilesManager.getSpecificLine(this.id, hours));
   }
 
+  async getSuitableFollowers(mode) {
+    return await PG.getValidFollowers(this.id, mode);
+  }
+
   async updateInfo(newData, mode) {
     const client = await PG.getClient();
 
@@ -222,6 +226,44 @@ class Kata {
     }
   }
 
+  async updateState() {
+    const client = await PG.getClient();
+
+    try {
+      await client.query('BEGIN');
+
+      const settings = await client.queryRows(
+        `SELECT hour, day, month from settings WHERE user_id IN (
+          SELECT user_id FROM subscription WHERE kata_id = $1
+        )`,
+        [this.id]
+      );
+
+      if (settings.length === 0) {
+        await this.delete();
+        return;
+      }
+
+      const someSettings = {};
+      for (const settingName in settings[0]) {
+        someSettings[settingName] = settings.some((setting) => Boolean(setting[settingName]));
+      }
+
+      await client.query(
+        `UPDATE history SET (hour, day, month) = (
+          $2, $3, $4
+        ) WHERE kata_id = $1`,
+        [this.id, someSettings.hour, someSettings.day, someSettings.month]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   async delete() {
     const client = await PG.getClient();
 
@@ -252,7 +294,7 @@ class Kata {
 
       const query = {
         text: `INSERT INTO history ( \
-          kata_id, followers, \
+          kata_id, \
           hour, day, month, \
           completed,      \
           stars,          \
@@ -261,15 +303,14 @@ class Kata {
           votes_not,      \
           comments        \
         ) VALUES ( \
-          $1, $2, $3, $4, $5, \
-          $6, $7, $8, $9, $10, $11 \
+          $1, $2, $3, $4, \
+          $5, $6, $7, $8, $9, $10 \
         )`,
         values: [
           kataId,
-          kataData.followers,
-          kataData.hour ?? true,
-          kataData.day ?? true,
-          kataData.month ?? true,
+          kataData.hour ?? false,
+          kataData.day ?? false,
+          kataData.month ?? false,
           kataData.completed ?? 0,
           kataData.stars ?? 0,
           kataData.votes_very ?? 0,
@@ -298,8 +339,7 @@ class Kata {
     const newKatas = new KatasArray();
     for (const kataData of katasData) {
       //BOTTLENECK
-      const array = await Slar.newArray(userId);
-      const newKata = await Kata.createKata(kataData.id, { followers: array.id, ...kataData });
+      const newKata = await Kata.createKata(kataData.id, kataData);
       newKatas.push(newKata);
     }
     return newKatas;
@@ -320,6 +360,18 @@ class Kata {
       `SELECT * FROM katas, history WHERE id = kata_id and cid IN (${cids.map(
         (cid) => `'${cid}'`
       )})`
+    );
+
+    const katas = new KatasArray(
+      ...katasRequest.rows.map((properties) => Kata.initKataWithProperties(properties))
+    );
+
+    return katas;
+  }
+
+  static async getKatas(ids) {
+    const katasRequest = await PG.query(
+      `SELECT * FROM katas, history WHERE id = kata_id and id IN (${ids.map((id) => `'${id}'`)})`
     );
 
     const katas = new KatasArray(

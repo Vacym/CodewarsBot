@@ -14,6 +14,11 @@ const pool = new Pool({
 
 const additionalFuncs = {};
 
+additionalFuncs.queryRows = async function (text, values) {
+  const result = await this.query(text, values);
+  return result.rows;
+};
+
 additionalFuncs.queryLine = async function (text, values) {
   const result = await this.query(text, values);
   return result.rowCount ? result.rows[0] : null;
@@ -107,23 +112,15 @@ additionalFuncs.updateUsersKataSettings = async function (userId, mode = 'hour')
   }
 };
 
-additionalFuncs.getValidFollowers = async function (arrayId, mode = 'hour') {
-  const userIds = await this.query(
-    `SELECT user_id FROM settings WHERE user_id IN (
-      SELECT CAST(value AS INTEGER) FROM arrays WHERE id = $1
+additionalFuncs.getValidFollowers = async function (kataId, mode = 'hour') {
+  const userTgIds = await this.queryColumn(
+    `SELECT tg_id FROM users, settings WHERE user_id = id AND user_id IN (
+      SELECT user_id from subscription WHERE kata_id = $1
     ) AND ${mode} = true`,
-    [arrayId]
+    [kataId]
   );
 
-  if (userIds.rowCount == 0) return [];
-
-  const users = await this.query(
-    `SELECT tg_id FROM users WHERE id IN (
-      ${userIds.rows.map((val) => val.user_id).toString()}
-    )`
-  );
-
-  return users.rows.map((val) => val.tg_id);
+  return userTgIds;
 };
 
 additionalFuncs.Slar = Slar;

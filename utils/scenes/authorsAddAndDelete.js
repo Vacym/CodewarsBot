@@ -20,6 +20,7 @@ const addAuthorsKatasScene = new Scenes.WizardScene(
     }
 
     const sc = ctx.scene.state;
+    const user = ctx.session.user;
     const author = new Author(subscribeObject.object);
     await author.initKatas();
 
@@ -37,10 +38,10 @@ const addAuthorsKatasScene = new Scenes.WizardScene(
     try {
       await client.query('BEGIN');
 
-      const usersKatas = Array.from(await client.getKatasOfUser(ctx.session.userId));
+      const usersKatasIds = await user.getKataIds();
       const oldKatas = await Kata.getExistingKatas(author.katas.cids);
 
-      const oldUserKatas = oldKatas.filter((kata) => usersKatas.includes(String(kata.id)));
+      const oldUserKatas = oldKatas.filter((kata) => usersKatasIds.includes(kata.id));
       const oldUserKatasCids = oldUserKatas.map((kata) => kata.cid);
       const newKatas = excerptNewKatas(author.katas, oldUserKatasCids);
       console.log('new', newKatas);
@@ -71,11 +72,12 @@ const addAuthorsKatasScene = new Scenes.WizardScene(
   Telegraf.on('text', async (ctx) => {
     const { approved, beta } = convertChoosingTypeOfKataString(ctx.message.text);
     if (approved === false && beta === false) {
-      ctx.reply('Отмена', mainMenuKb());
+      ctx.reply('Cancel', mainMenuKb());
       return ctx.scene.leave();
     }
 
     const sc = ctx.scene.state;
+    const user = ctx.session.user;
     const newKatas = sc.newKatas;
     const oldKatas = sc.oldKatas;
     const oldKatasCids = oldKatas.map((kata) => kata.cid);
@@ -95,13 +97,13 @@ const addAuthorsKatasScene = new Scenes.WizardScene(
       dataOfNewKatas.push(await Codewars.getKataFullInfo(cid));
     }
 
-    await katasForUpdate.addKatasToUser(ctx.session.userId);
-    const createdKatas = await Kata.createKatas(dataOfNewKatas, ctx.session.userId);
-    const userKatasSlarArray = await PG.getKatasOfUser(ctx.session.userId);
-
-    userKatasSlarArray.push(...createdKatas.ids);
+    const createdKatas = await Kata.createKatas(dataOfNewKatas);
+    await user.addKatas(katasForUpdate);
+    await user.addKatas(createdKatas);
 
     return ctx.scene.leave();
+
+    // TODO adequate algorithm
 
     function separateCreateAndUpdate(cids) {
       for (const cid of cids) {
@@ -129,6 +131,7 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
     }
 
     const sc = ctx.scene.state;
+    const user = ctx.session.user;
     const author = new Author(subscribeObject.object);
     await author.initKatas();
 
@@ -146,10 +149,10 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
     try {
       await client.query('BEGIN');
 
-      const usersKatas = Array.from(await client.getKatasOfUser(ctx.session.userId));
+      const usersKatasIds = await user.getUsersKataIds();
       const oldKatas = await Kata.getExistingKatas(author.katas.cids);
 
-      const oldUserKatas = oldKatas.filter((kata) => usersKatas.includes(String(kata.id)));
+      const oldUserKatas = oldKatas.filter((kata) => usersKatasIds.includes(kata.id));
       const oldUserKatasCids = oldUserKatas.map((kata) => kata.cid);
       const oldCodewarsKatas = excerptOldKatas(author.katas, oldUserKatasCids);
       console.log('new', oldCodewarsKatas);
@@ -180,7 +183,7 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
   Telegraf.on('text', async (ctx) => {
     const { approved, beta } = convertChoosingTypeOfKataString(ctx.message.text);
     if (approved === false && beta === false) {
-      ctx.reply('Отмена', mainMenuKb());
+      ctx.reply('Cancel', mainMenuKb());
       return ctx.scene.leave();
     }
 

@@ -8,6 +8,9 @@ tempCodeRunnerFile.js
 *.dev
 .DS_Store
 
+# VisualStudioCode
+.vscode
+
 # Docker
 Dockerfile
 docker-compose.yml

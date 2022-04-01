@@ -1,49 +1,18 @@
 import { Telegraf } from 'telegraf';
+
 import PG from './pg.js';
 import { mainMenuKb } from './keyboards.js';
+import User from './entities/user.js';
 
-async function checkUser(tgId) {
-  let response = await PG.query(`SELECT id FROM users WHERE tg_id = $1`, [tgId]);
-
-  return response.rowCount ? response.rows[0].id : false;
-}
-
-async function createNewUser(tgId) {
-  const client = await PG.getClient();
-  let userId;
-
-  try {
-    await client.query('BEGIN');
-    userId = await client.queryFirst(`INSERT INTO users (tg_id) VALUES ($1) RETURNING id`, [tgId]);
-
-    await client.query(
-      `
-      INSERT INTO settings (
-        user_id, katas
-      ) VALUES (
-        $1, nextval('new_array_id')
-      )`,
-      [userId]
-    );
-
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-  return userId;
-}
-
-async function userInitialization(ctx) {
+async function initUser(ctx) {
   const tgId = ctx.from.id;
 
-  let userId = await checkUser(tgId);
+  let user = new User(tgId);
+  await user.init();
 
-  if (!userId) {
-    userId = await createNewUser(tgId);
-    console.log('[New user]', tgId, userId);
+  if (user.valid === false) {
+    user = await User.createUser(tgId);
+    console.log('[New user]', tgId, user.id);
     await ctx.reply(
       `\
 Welcome to the bot for tracking changes in your katas in Codewars.
@@ -53,21 +22,21 @@ so you can tell me about your experiences, bugs or suggestions.`,
     );
   }
 
-  ctx.session.userId = userId;
+  ctx.session.user = user;
 
-  console.log('[Today user]', userId);
+  console.log('[Today user]', user.id);
   return true;
 }
 
 function userManager() {
   return Telegraf.optional(
     async (ctx) => {
-      return !ctx.session.userId && !ctx.session.checking;
+      return 'checking' in ctx.session === false;
     },
 
     async (ctx, next) => {
       if (ctx.session.checking === undefined) {
-        ctx.session.checking = userInitialization(ctx);
+        ctx.session.checking = initUser(ctx);
       }
 
       await ctx.session.checking;
