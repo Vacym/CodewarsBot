@@ -1,6 +1,5 @@
 // Connecting the database
 import pkg from 'pg';
-import Slar from './sqlArray.js';
 const { Pool } = pkg;
 
 const pool = new Pool({
@@ -46,72 +45,6 @@ additionalFuncs.queryColumn = async function (text, values) {
   return result.rowCount ? result.rows.map((x) => x[0]) : null;
 };
 
-additionalFuncs.getKataById = async function (kataId) {
-  const kataCid = await this.queryFirst(`SELECT cid FROM katas WHERE id = $1`, [kataId]);
-  return kataCid;
-};
-additionalFuncs.getKataIdByCid = async function (kataCid) {
-  const kataId = await this.queryFirst(`SELECT id FROM katas WHERE cid = $1`, [kataCid]);
-  return kataId;
-};
-
-additionalFuncs.getTgById = async function (userId) {
-  const user = await this.queryFirst(`SELECT tg_id FROM users WHERE id = $1`, [userId]);
-  return user;
-};
-
-additionalFuncs.getKatasOfUser = async function (userId) {
-  const arrayId = await this.queryFirst(`SELECT katas FROM settings WHERE user_id = $1`, [
-    String(userId),
-  ]);
-  if (!arrayId) return [];
-  return this.Slar.getArray(arrayId);
-};
-
-additionalFuncs.getArrayIdOfUser = async function (userId) {
-  return await this.queryFirst(`SELECT katas FROM settings WHERE user_id = $1`, [userId]);
-};
-
-additionalFuncs.getUserSettings = async function (tgId) {
-  return this.queryLine(
-    'SELECT * FROM settings WHERE user_id = (SELECT id FROM users WHERE tg_id = $1)',
-    [tgId]
-  );
-};
-
-additionalFuncs.updateUsersKataSettings = async function (userId, mode = 'hour') {
-  const katas = await this.query(
-    `SELECT * from history where kata_id IN (
-      SELECT CAST(value AS INTEGER) FROM arrays WHERE id = (
-        SELECT katas FROM settings WHERE user_id = $1
-      )
-    )`,
-    [userId]
-  );
-
-  let changing_katas = [];
-  for (const kata of katas.rows) {
-    const following = await this.queryFirst(
-      `SELECT true = ANY (
-        SELECT ${mode} FROM settings WHERE user_id IN (
-          SELECT CAST(value AS INTEGER) FROM arrays WHERE id = $1
-        )
-      )`,
-      [kata.followers]
-    );
-
-    if (following != kata[mode]) {
-      changing_katas.push(kata.kata_id);
-    }
-  }
-
-  if (changing_katas.length) {
-    this.query(
-      `UPDATE history SET ${mode} = NOT ${mode} WHERE kata_id IN (${changing_katas.toString()})`
-    );
-  }
-};
-
 additionalFuncs.getValidFollowers = async function (kataId, mode = 'hour') {
   const userTgIds = await this.queryColumn(
     `SELECT tg_id FROM users, settings WHERE user_id = id AND user_id IN (
@@ -122,8 +55,6 @@ additionalFuncs.getValidFollowers = async function (kataId, mode = 'hour') {
 
   return userTgIds;
 };
-
-additionalFuncs.Slar = Slar;
 
 export default {
   async query(text, params) {

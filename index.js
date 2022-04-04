@@ -1,5 +1,6 @@
 const MODE = Boolean(process.env.MODE); // true: on server, false: locally
 const ADMINS = JSON.parse(process.env.ADMINS);
+import './env.js';
 
 // bot libraries
 import { Telegraf, Scenes } from 'telegraf';
@@ -11,9 +12,6 @@ import * as scenes from './utils/scenes.js';
 import { initializeMenu, firstMenu } from './utils/menu/menu.js';
 import { mainMenuKb } from './utils/keyboards.js';
 import History from './utils/history.js';
-import PG from './utils/pg.js';
-import Slar from './utils/sqlArray.js';
-PG.Slar = Slar;
 
 // Running the bot
 

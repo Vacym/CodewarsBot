@@ -2,7 +2,6 @@ import { Telegraf, Scenes } from 'telegraf';
 import { mainMenuKb, removeKd, justYesNoKb } from './../keyboards.js';
 
 import PG from './../pg.js';
-import Slar from './../sqlArray.js';
 import convertAuthorOrKata from './../kataIsValid.js';
 import { Kata } from './../entities/kata.js';
 import Codewars from './../codewars.js';
@@ -32,12 +31,12 @@ const addKataScene = new Scenes.WizardScene(
       sc.kata = kata;
 
       if (kata.valid && (await user.hasKata(kata))) {
-        // If the person has already signed
+        // If the person has already subscribed
         ctx.reply('You are already subscribed to this kata', mainMenuKb());
         return ctx.scene.leave();
       }
 
-      // If the person is not signed or the kata is not in the table
+      // If the person is not subscribed or the kata is not in the table
 
       sc.req = await Codewars.getKataFullInfo(cid);
       if (!sc.req.name) {
@@ -151,7 +150,7 @@ const deleteKataScene = new Scenes.WizardScene(
       await sc.kata.init();
 
       if ((await user.hasKata(sc.kata)) === false) {
-        // If the person has not signed
+        // If the person has not subscribed
         ctx.reply('You are not subscribed to this kata', mainMenuKb());
         return ctx.scene.leave();
       }

@@ -33,10 +33,8 @@ class User {
   }
 
   async deleteKata(kata) {
-    console.log('start delete kata');
     await SqlSetManager.deletePair(this.id, kata.id);
     await kata.updateState();
-    console.log('end delete kata');
   }
 
   async deleteKatas(katasArray) {

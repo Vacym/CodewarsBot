@@ -97,12 +97,10 @@ class SqlSetManager {
   }
 
   static async deletePair(userId, kataId) {
-    console.log('start delete pair');
     await PG.query('DELETE FROM subscription WHERE user_id = $1 AND kata_id = $2', [
       userId,
       kataId,
     ]);
-    console.log('end delete pair');
   }
 
   static async getUsersKataCids(userId) {
