@@ -3,23 +3,23 @@ const ADMINS = JSON.parse(process.env.ADMINS);
 
 // bot libraries
 import { Telegraf, Scenes } from 'telegraf';
-import { session } from './utils/session.js';
-import userManager from './utils/userManager.js';
 
 // util libraries
-import * as scenes from './utils/scenes.js';
 import { initializeMenu, firstMenu } from './utils/menu/menu.js';
 import { mainMenuKb } from './utils/keyboards.js';
 import History from './utils/history.js';
-import PG from './utils/pg.js';
-import Slar from './utils/sqlArray.js';
-PG.Slar = Slar;
 
 // Running the bot
 
 const bot = new Telegraf(global.process.env.TOKEN);
 bot.telegram.sendMessage(ADMINS[0], `Starting a ${MODE ? 'remote' : 'local'} server`);
 // Notification for me
+
+// Middlewares
+
+import { session } from './utils/session.js';
+import userManager from './utils/userManager.js';
+import * as scenes from './utils/scenes.js';
 
 const stage = new Scenes.Stage([
   scenes.addKataScene,

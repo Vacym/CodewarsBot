@@ -2,7 +2,6 @@ import { Telegraf, Scenes } from 'telegraf';
 import { mainMenuKb, removeKd, justYesNoKb } from './../keyboards.js';
 
 import PG from './../pg.js';
-import Slar from './../sqlArray.js';
 import convertAuthorOrKata from './../kataIsValid.js';
 import { Kata } from './../entities/kata.js';
 import Codewars from './../codewars.js';
@@ -20,6 +19,7 @@ const addKataScene = new Scenes.WizardScene(
     const cid = subscribeObject.object;
     const sc = ctx.scene.state;
     const client = await PG.getClient();
+    const user = ctx.session.user;
 
     try {
       await client.query('BEGIN');
@@ -30,18 +30,13 @@ const addKataScene = new Scenes.WizardScene(
       await kata.init();
       sc.kata = kata;
 
-      if (kata.valid) {
-        // If this kata is in the table
-
-        if (await Slar.includes(ctx.session.userId, kata.followers)) {
-          // If the person has already signed
-          ctx.scene.leave();
-          ctx.reply('You are already subscribed to this kata', mainMenuKb());
-          return;
-        }
+      if (kata.valid && (await user.hasKata(kata))) {
+        // If the person has already subscribed
+        ctx.reply('You are already subscribed to this kata', mainMenuKb());
+        return ctx.scene.leave();
       }
 
-      // If the person is not signed or the kata is not in the table
+      // If the person is not subscribed or the kata is not in the table
 
       sc.req = await Codewars.getKataFullInfo(cid);
       if (!sc.req.name) {
@@ -90,17 +85,13 @@ const addKataScene = new Scenes.WizardScene(
       await client.query('BEGIN');
 
       const req = ctx.scene.state.req;
+      const user = ctx.session.user;
       let kata = ctx.scene.state.kata;
-
-      const settings = await client.queryLine(`
-          SELECT hour, day, month FROM settings WHERE user_id = '${ctx.session.userId}'
-        `);
 
       if (!kata.valid) {
         // If the kata is not in the database
-        const array = await Slar.newArray(ctx.session.userId);
 
-        kata = await Kata.createKata(req.id, { followers: array.id, ...settings, ...req }, client);
+        kata = await Kata.createKata(req.id, req, client);
 
         console.log(
           '[New kata add]',
@@ -111,36 +102,9 @@ const addKataScene = new Scenes.WizardScene(
           '[id]',
           kata.id
         );
-      } else {
-        // If the kata is on the database
-
-        const history = await client.queryLine(
-          `
-          SELECT
-            followers, hour, day, month
-          FROM history WHERE
-            kata_id = $1
-          `,
-          [kata.id]
-        );
-
-        const followers = await Slar.getArray(history.followers);
-        await followers.push(ctx.session.userId);
-
-        await client.query(
-          `
-          UPDATE history SET (hour, day, month) = (
-            ${history.hour || settings.hour},
-            ${history.day || settings.day},
-            ${history.month || settings.month}
-          ) WHERE kata_id = $1
-          `,
-          [kata.id]
-        );
       }
 
-      const userArray = await client.getKatasOfUser(ctx.session.userId);
-      await userArray.push(kata.id);
+      await user.addKata(kata);
 
       subscribeResult(req);
 
@@ -174,6 +138,7 @@ const deleteKataScene = new Scenes.WizardScene(
 
     const cid = subscribeObject.object;
     const sc = ctx.scene.state;
+    const user = ctx.session.user;
 
     // Checking for a kata in the table
     const client = await PG.getClient();
@@ -184,8 +149,8 @@ const deleteKataScene = new Scenes.WizardScene(
       sc.kata = new Kata({ cid });
       await sc.kata.init();
 
-      if (!(await Slar.includes(ctx.session.userId, sc.kata.followers))) {
-        // If the person has not signed
+      if ((await user.hasKata(sc.kata)) === false) {
+        // If the person has not subscribed
         ctx.reply('You are not subscribed to this kata', mainMenuKb());
         return ctx.scene.leave();
       }
@@ -213,24 +178,16 @@ const deleteKataScene = new Scenes.WizardScene(
       ctx.reply('Cancel', mainMenuKb());
       return ctx.scene.leave();
     }
+
+    const kata = ctx.scene.state.kata;
+    const user = ctx.session.user;
+
     const client = await PG.getClient();
 
     try {
       await client.query('BEGIN');
 
-      const kata = ctx.scene.state.kata;
-      const kataArray = await Slar.getArray(kata.followers);
-      const userArray = await client.getKatasOfUser(ctx.session.userId);
-
-      // Removing a user from an array
-      await userArray.deleteByName(kata.id);
-      await kataArray.deleteByName(ctx.session.userId);
-
-      if (kataArray.length === 0) {
-        // If he is the only subscriber
-        console.log('[Full delete]', kata.id);
-        await kata.delete();
-      }
+      await user.deleteKata(kata);
 
       ctx.reply('The unsubscribe was successful', mainMenuKb());
       console.log('[Kata delete]', kata.cid, '[by]', ctx.message.from.id, '[id]', kata.id);

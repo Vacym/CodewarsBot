@@ -60,12 +60,14 @@ class History {
   }
 
   async sendChanges(kata, newData, mode, nowTime = new Date()) {
-    const followers = await PG.getValidFollowers(kata.followers, mode);
+    const followers = await kata.getSuitableFollowers(mode);
 
     if (followers.length == 0) return;
 
     const oldData = await kata.getInfo(mode);
     let text = History.generateKataText(oldData, newData);
+
+    if (!text) return;
 
     console.log('[Text updated]', kata.cid, newData.name);
 
@@ -146,7 +148,7 @@ class History {
   }
 
   needProperties() {
-    return `id, cid, followers, time, completed, stars, votes_very, votes_somewhat, votes_not, comments`;
+    return `id, cid, time, completed, stars, votes_very, votes_somewhat, votes_not, comments`;
   }
 
   floatUTCHour(date = new Date()) {
@@ -160,8 +162,6 @@ class History {
   }
 
   static generateKataText(oldData, newData) {
-    // data.property[0] - old, data.property[1] - new
-
     const plus = (delta) => (delta < 0 ? '' : '+');
     const sign = (num) => plus(num) + num;
 
