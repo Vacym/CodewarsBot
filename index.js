@@ -1,14 +1,10 @@
 const MODE = Boolean(process.env.MODE); // true: on server, false: locally
 const ADMINS = JSON.parse(process.env.ADMINS);
-import './env.js';
 
 // bot libraries
 import { Telegraf, Scenes } from 'telegraf';
-import { session } from './utils/session.js';
-import userManager from './utils/userManager.js';
 
 // util libraries
-import * as scenes from './utils/scenes.js';
 import { initializeMenu, firstMenu } from './utils/menu/menu.js';
 import { mainMenuKb } from './utils/keyboards.js';
 import History from './utils/history.js';
@@ -18,6 +14,12 @@ import History from './utils/history.js';
 const bot = new Telegraf(global.process.env.TOKEN);
 bot.telegram.sendMessage(ADMINS[0], `Starting a ${MODE ? 'remote' : 'local'} server`);
 // Notification for me
+
+// Middlewares
+
+import { session } from './utils/session.js';
+import userManager from './utils/userManager.js';
+import * as scenes from './utils/scenes.js';
 
 const stage = new Scenes.Stage([
   scenes.addKataScene,
