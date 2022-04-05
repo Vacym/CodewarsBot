@@ -7,20 +7,24 @@ import User from './entities/user.js';
 async function initUser(ctx) {
   const tgId = ctx.from.id;
 
-  let user = new User(tgId);
-  await user.init();
+  const user = await PG.startSession(async (client) => {
+    let user = new User(tgId);
+    await user.init(client);
 
-  if (user.valid === false) {
-    user = await User.createUser(tgId);
-    console.log('[New user]', tgId, user.id);
-    await ctx.reply(
-      `\
+    if (user.valid === false) {
+      user = await User.createUser(tgId, client);
+      console.log('[New user]', tgId, user.id);
+
+      await ctx.reply(
+        `\
 Welcome to the bot for tracking changes in your katas in Codewars.
 It is very important to me that users are happy with their interaction with the bot, \
 so you can tell me about your experiences, bugs or suggestions.`,
-      mainMenuKb()
-    );
-  }
+        mainMenuKb()
+      );
+    }
+    return user;
+  });
 
   ctx.session.user = user;
 
