@@ -102,10 +102,10 @@ class KataFilesManager {
 }
 
 class KatasArray extends Array {
-  async updateState() {
+  async updateState(client) {
     for (const kata of this) {
       //BOTTLENECK
-      await kata.updateState();
+      await kata.updateState(client);
     }
   }
 
@@ -128,20 +128,22 @@ class Kata {
     this.id = options.id;
   }
 
-  async init() {
-    Object.assign(
-      this,
-      this.id
-        ? await PG.queryLine(
-            'SELECT * FROM history, katas WHERE history.kata_id = katas.id AND id = $1',
-            [this.id]
-          )
-        : await PG.queryLine(
-            'SELECT * FROM history, katas WHERE history.kata_id = katas.id AND cid = $1',
-            [this.cid]
-          )
-    );
-    this.valid = Boolean(this.cid && this.id);
+  async init(client) {
+    await PG.session(client, async (client) => {
+      Object.assign(
+        this,
+        this.id
+          ? await client.queryLine(
+              'SELECT * FROM history, katas WHERE history.kata_id = katas.id AND id = $1',
+              [this.id]
+            )
+          : await client.queryLine(
+              'SELECT * FROM history, katas WHERE history.kata_id = katas.id AND cid = $1',
+              [this.cid]
+            )
+      );
+      this.valid = Boolean(this.cid && this.id);
+    });
   }
 
   async getThisMonthInfo() {
@@ -175,12 +177,8 @@ class Kata {
     return await PG.getValidFollowers(this.id, mode);
   }
 
-  async updateInfo(newData, mode) {
-    const client = await PG.getClient();
-
-    try {
-      await client.query('BEGIN');
-
+  async updateInfo(newData, mode, client) {
+    PG.session(client, async (client) => {
       const query = {
         text: `UPDATE history SET  \
           time = $1,           \
@@ -215,22 +213,11 @@ class Kata {
       } else {
         await KataFilesManager.updateKata(this.id, newData);
       }
-
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
   }
 
-  async updateState() {
-    const client = await PG.getClient();
-
-    try {
-      await client.query('BEGIN');
-
+  async updateState(client) {
+    await PG.session(client, async (client) => {
       const settings = await client.queryRows(
         `SELECT hour, day, month from settings WHERE user_id IN (
           SELECT user_id FROM subscription WHERE kata_id = $1
@@ -239,7 +226,7 @@ class Kata {
       );
 
       if (settings.length === 0) {
-        await this.delete();
+        await this.delete(client);
         return;
       }
 
@@ -254,39 +241,19 @@ class Kata {
         ) WHERE kata_id = $1`,
         [this.id, someSettings.hour, someSettings.day, someSettings.month]
       );
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
   }
 
-  async delete() {
-    const client = await PG.getClient();
-
-    try {
-      await client.query('BEGIN');
-
+  async delete(client) {
+    await PG.session(client, async (client) => {
       await client.query(`DELETE FROM history WHERE kata_id = $1;`, [this.id]);
       await client.query(`DELETE FROM katas WHERE id = $1;`, [this.id]);
       await KataFilesManager.deleteKata(this.id);
-
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
   }
 
-  static async createKata(cid, kataData = {}) {
-    const client = await PG.getClient();
-
-    try {
-      await client.query('BEGIN');
+  static async createKata(cid, kataData = {}, client) {
+    return await PG.session(client, async (client) => {
       const kataId = await client.queryFirst('INSERT INTO katas (cid) VALUES ($1) RETURNING id', [
         cid,
       ]);
@@ -323,15 +290,9 @@ class Kata {
 
       await KataFilesManager.createKata(kataId, kataData);
 
-      await client.query('COMMIT');
-
       return new Kata({ id: kataId });
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
+      // TODO: return inited kata
+    });
   }
 
   static async createKatas(katasData = [], userId) {
@@ -368,16 +329,18 @@ class Kata {
     return katas;
   }
 
-  static async getKatas(ids) {
-    const katasRequest = await PG.query(
-      `SELECT * FROM katas, history WHERE id = kata_id and id IN (${ids.map((id) => `'${id}'`)})`
-    );
+  static async getKatas(ids, client) {
+    return await PG.session(client, async (client) => {
+      const katasRequest = await client.query(
+        `SELECT * FROM katas, history WHERE id = kata_id and id IN (${ids.map((id) => `'${id}'`)})`
+      );
 
-    const katas = new KatasArray(
-      ...katasRequest.rows.map((properties) => Kata.initKataWithProperties(properties))
-    );
+      const katas = new KatasArray(
+        ...katasRequest.rows.map((properties) => Kata.initKataWithProperties(properties))
+      );
 
-    return katas;
+      return katas;
+    });
   }
 }
 

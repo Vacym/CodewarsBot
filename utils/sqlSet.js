@@ -85,34 +85,37 @@ class SqlSetManager {
     return userSet;
   }
 
-  static async hasPair(userId, kataId) {
-    return PG.queryFirst(`SELECT $1 IN (SELECT kata_id FROM subscription WHERE user_id = $2)`, [
-      kataId,
-      userId,
-    ]);
+  static async hasPair(userId, kataId, client) {
+    return await client.queryFirst(
+      `SELECT $1 IN (SELECT kata_id FROM subscription WHERE user_id = $2)`,
+      [kataId, userId]
+    );
   }
 
-  static async addPair(userId, kataId) {
-    await PG.query('INSERT INTO subscription (user_id, kata_id) VALUES ($1, $2)', [userId, kataId]);
-  }
-
-  static async deletePair(userId, kataId) {
-    await PG.query('DELETE FROM subscription WHERE user_id = $1 AND kata_id = $2', [
+  static async addPair(userId, kataId, client) {
+    await client.query('INSERT INTO subscription (user_id, kata_id) VALUES ($1, $2)', [
       userId,
       kataId,
     ]);
   }
 
-  static async getUsersKataCids(userId) {
-    return await PG.queryColumn(
+  static async deletePair(userId, kataId, client) {
+    await client.query('DELETE FROM subscription WHERE user_id = $1 AND kata_id = $2', [
+      userId,
+      kataId,
+    ]);
+  }
+
+  static async getUsersKataCids(userId, client) {
+    return await client.queryColumn(
       `SELECT cid FROM katas WHERE id IN (
         SELECT kata_id from ${nameDB} WHERE user_id = $1
       )`,
       [userId]
     );
   }
-  static async getUsersKataIds(userId) {
-    return await PG.queryColumn(`SELECT kata_id from ${nameDB} WHERE user_id = $1`, [userId]);
+  static async getUsersKataIds(userId, client) {
+    return await client.queryColumn(`SELECT kata_id from ${nameDB} WHERE user_id = $1`, [userId]);
   }
 
   // TODO: create methods:

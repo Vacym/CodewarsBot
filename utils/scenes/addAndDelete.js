@@ -18,45 +18,40 @@ const addKataScene = new Scenes.WizardScene(
 
     const cid = subscribeObject.object;
     const sc = ctx.scene.state;
-    const client = await PG.getClient();
     const user = ctx.session.user;
 
-    try {
-      await client.query('BEGIN');
+    await PG.startSession(
+      async (client) => {
+        // Checking for the presence of kata in the table
 
-      // Checking for the presence of kata in the table
+        const kata = new Kata({ cid });
+        await kata.init(client);
+        sc.kata = kata;
 
-      const kata = new Kata({ cid });
-      await kata.init();
-      sc.kata = kata;
+        if (kata.valid && (await user.hasKata(kata, client))) {
+          // If the person has already subscribed
+          ctx.reply('You are already subscribed to this kata', mainMenuKb());
+          return ctx.scene.leave();
+        }
 
-      if (kata.valid && (await user.hasKata(kata))) {
-        // If the person has already subscribed
-        ctx.reply('You are already subscribed to this kata', mainMenuKb());
-        return ctx.scene.leave();
+        // If the person is not subscribed or the kata is not in the table
+
+        sc.req = await Codewars.getKataFullInfo(cid);
+        if (!sc.req.name) {
+          // If there is an error in the query
+          ctx.reply("We couldn't find this kata.", mainMenuKb());
+          return ctx.scene.leave();
+        }
+
+        ctx.wizard.next();
+        ctx.reply(`Do you want to subscribe to the kata "${sc.req.name}"?`, justYesNoKb());
+      },
+      (e) => {
+        ctx.leave()
+        ctx.reply('Error', mainMenuKb());
+        console.error(e);
       }
-
-      // If the person is not subscribed or the kata is not in the table
-
-      sc.req = await Codewars.getKataFullInfo(cid);
-      if (!sc.req.name) {
-        // If there is an error in the query
-        ctx.reply("We couldn't find this kata.", mainMenuKb());
-        return ctx.scene.leave();
-      }
-
-      ctx.wizard.next();
-      ctx.reply(`Do you want to subscribe to the kata "${sc.req.name}"?`, justYesNoKb());
-
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      ctx.scene.leave();
-      ctx.reply('Error', mainMenuKb());
-      console.error(e);
-    } finally {
-      client.release();
-    }
+    );
   }),
   Telegraf.on('text', async (ctx) => {
     let textSuccessSubscribe = (req) => {
@@ -79,44 +74,28 @@ const addKataScene = new Scenes.WizardScene(
       return ctx.scene.leave();
     }
 
-    const client = await PG.getClient();
+    await PG.startSession(
+      async (client) => {
+        const req = ctx.scene.state.req;
+        const user = ctx.session.user;
+        let kata = ctx.scene.state.kata;
 
-    try {
-      await client.query('BEGIN');
+        if (!kata.valid) {
+          // If the kata is not in the database
+          kata = await Kata.createKata(req.id, req, client);
 
-      const req = ctx.scene.state.req;
-      const user = ctx.session.user;
-      let kata = ctx.scene.state.kata;
+          console.log('[New kata add]', req.id, req.name, '[by]', user.id, '[id]', kata.id);
+        }
 
-      if (!kata.valid) {
-        // If the kata is not in the database
+        await user.addKata(kata, client);
 
-        kata = await Kata.createKata(req.id, req, client);
-
-        console.log(
-          '[New kata add]',
-          req.id,
-          req.name,
-          '[by]',
-          ctx.message.from.id,
-          '[id]',
-          kata.id
-        );
+        subscribeResult(req);
+      },
+      (e) => {
+        ctx.reply('Error', mainMenuKb());
+        console.error(e);
       }
-
-      await user.addKata(kata);
-
-      subscribeResult(req);
-
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      ctx.scene.leave();
-      ctx.reply('Error', mainMenuKb());
-      console.error(e);
-    } finally {
-      client.release();
-    }
+    );
 
     ctx.scene.leave();
   })
@@ -141,37 +120,30 @@ const deleteKataScene = new Scenes.WizardScene(
     const user = ctx.session.user;
 
     // Checking for a kata in the table
-    const client = await PG.getClient();
+    await PG.startSession(
+      async (client) => {
+        sc.kata = new Kata({ cid });
+        await sc.kata.init(client);
 
-    try {
-      await client.query('BEGIN');
+        if ((await user.hasKata(sc.kata, client)) === false) {
+          // If the person has not subscribed
+          ctx.reply('You are not subscribed to this kata', mainMenuKb());
+          return ctx.scene.leave();
+        }
 
-      sc.kata = new Kata({ cid });
-      await sc.kata.init();
+        const response = await Codewars.getKataAPIInfo(cid); // Requesting a kata
 
-      if ((await user.hasKata(sc.kata)) === false) {
-        // If the person has not subscribed
-        ctx.reply('You are not subscribed to this kata', mainMenuKb());
-        return ctx.scene.leave();
+        // Confirmation request
+        ctx.reply(`Do you want to unsubscribe from the kata "${response.name}"?`, justYesNoKb());
+
+        ctx.wizard.next();
+      },
+      (e) => {
+        ctx.scene.leave();
+        ctx.reply('Error', mainMenuKb());
+        console.error(e);
       }
-
-      const response = await Codewars.getKataAPIInfo(cid); // Requesting a kata
-
-      // Confirmation request
-      ctx.reply(`Do you want to unsubscribe from the kata "${response.name}"?`, justYesNoKb());
-
-      ctx.wizard.next();
-
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      ctx.scene.leave();
-      ctx.reply('Error', mainMenuKb());
-
-      console.error(e);
-    } finally {
-      client.release();
-    }
+    );
   }),
   Telegraf.on('text', async (ctx) => {
     if (ctx.message.text != 'Yes') {
@@ -182,24 +154,18 @@ const deleteKataScene = new Scenes.WizardScene(
     const kata = ctx.scene.state.kata;
     const user = ctx.session.user;
 
-    const client = await PG.getClient();
+    await PG.startSession(
+      async (client) => {
+        await user.deleteKata(kata, client);
 
-    try {
-      await client.query('BEGIN');
-
-      await user.deleteKata(kata);
-
-      ctx.reply('The unsubscribe was successful', mainMenuKb());
-      console.log('[Kata delete]', kata.cid, '[by]', ctx.message.from.id, '[id]', kata.id);
-
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      console.error(e);
-      ctx.reply('Error', mainMenuKb());
-    } finally {
-      client.release();
-    }
+        ctx.reply('The unsubscribe was successful', mainMenuKb());
+        console.log('[Kata delete]', kata.cid, '[by]', ctx.message.from.id, '[id]', kata.id);
+      },
+      (e) => {
+        console.error(e);
+        ctx.reply('Error', mainMenuKb());
+      }
+    );
 
     ctx.scene.leave();
   })

@@ -21,25 +21,14 @@ export default [
     async (ctx) => {
       const mode = ctx.match[1];
       const user = ctx.session.user;
-      const client = await PG.getClient();
 
-      try {
-        await client.query('BEGIN');
-        await ctx.answerCbQuery();
+      await ctx.answerCbQuery();
 
-        const settings = await user.toggleSettings(mode);
+      const settings = await user.toggleSettings(mode);
 
-        console.log('[Toggle notification]', ctx.session.user.id, '[mode]', mode);
+      console.log('[Toggle notification]', ctx.session.user.id, '[mode]', mode);
 
-        await ctx.editMessageReplyMarkup(settingsKb(settings).reply_markup);
-
-        await client.query('COMMIT');
-      } catch (e) {
-        await client.query('ROLLBACK');
-        throw e;
-      } finally {
-        client.release();
-      }
+      await ctx.editMessageReplyMarkup(settingsKb(settings).reply_markup);
     },
   ],
 ];

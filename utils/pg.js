@@ -102,6 +102,34 @@ export default {
     return client;
   },
 
+  async session(client, bodyFunction, errorFunction) {
+    let isFirstClient = false;
+    if (!client) {
+      isFirstClient = true;
+      client = await this.getClient();
+    }
+
+    try {
+      if (isFirstClient) await client.query('BEGIN');
+
+      var returnValue = await bodyFunction(client);
+
+      if (isFirstClient) await client.query('COMMIT');
+    } catch (e) {
+      if (isFirstClient) await client.query('ROLLBACK');
+
+      if (errorFunction) await errorFunction(e);
+      else throw e;
+    } finally {
+      if (isFirstClient) client.release();
+    }
+    return returnValue;
+  },
+
+  async startSession(bodyFunction, errorFunction) {
+    return await this.session(null, bodyFunction, errorFunction);
+  },
+
   ...additionalFuncs,
 };
 
