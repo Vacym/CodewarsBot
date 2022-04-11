@@ -24,27 +24,31 @@ class History {
     const mode = this.determineMode(new Date());
 
     console.log('check', mode);
-    const result = await PG.query(
-      `SELECT ${this.needProperties(
-        mode
-      )} FROM history, katas WHERE kata_id = id AND time < $1 AND ${mode} = true`,
-      [this.timeOfPreviousCheck().toJSON()]
-    );
 
-    console.log(result.rowCount, this.timeOfPreviousCheck(mode).toJSON());
+    PG.startSession(async (client) => {
+      // TODO: move PG.query from here
+      const result = await client.query(
+        `SELECT ${this.needProperties(
+          mode
+        )} FROM history, katas WHERE kata_id = id AND time < $1 AND ${mode} = true`,
+        [this.timeOfPreviousCheck().toJSON()]
+      );
 
-    for (const kataProperties of result.rows) {
-      //BOTTLENECK
-      const kata = Kata.initKataWithProperties(kataProperties);
-      const newData = await Codewars.getKataFullInfo(kata.cid);
-      await this.sendAndUpdateKata(kata, newData, mode);
-    }
+      console.log(result.rowCount, this.timeOfPreviousCheck(mode).toJSON());
 
-    const wait = this.timeForNextCheck();
-    setTimeout(this.checkAndUpdate.bind(this), wait);
+      for (const kataProperties of result.rows) {
+        //BOTTLENECK
+        const kata = Kata.initKataWithProperties(kataProperties);
+        const newData = await Codewars.getKataFullInfo(kata.cid);
+        await this.sendAndUpdateKata(kata, newData, mode, client);
+      }
+
+      const wait = this.timeForNextCheck();
+      setTimeout(this.checkAndUpdate.bind(this), wait);
+    });
   }
 
-  async sendAndUpdateKata(kata, newData, mode = 'hour') {
+  async sendAndUpdateKata(kata, newData, mode = 'hour', client) {
     const nowTime = new Date();
     newData.time = nowTime;
 
@@ -56,7 +60,7 @@ class History {
       await this.sendChanges(kata, newData, 'month', nowTime);
     }
 
-    await kata.updateInfo(newData, mode);
+    await kata.updateInfo(newData, mode, client);
   }
 
   async sendChanges(kata, newData, mode, nowTime = new Date()) {

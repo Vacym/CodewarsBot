@@ -177,12 +177,8 @@ class Kata {
     return await PG.getValidFollowers(this.id, mode);
   }
 
-  async updateInfo(newData, mode) {
-    const client = await PG.getClient();
-
-    try {
-      await client.query('BEGIN');
-
+  async updateInfo(newData, mode, client) {
+    PG.session(client, async (client) => {
       const query = {
         text: `UPDATE history SET  \
           time = $1,           \
@@ -217,14 +213,7 @@ class Kata {
       } else {
         await KataFilesManager.updateKata(this.id, newData);
       }
-
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async updateState(client) {
