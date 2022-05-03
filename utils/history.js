@@ -23,24 +23,19 @@ class History {
   async checkAndUpdate() {
     const mode = this.determineMode(new Date());
 
-    console.log('check', mode);
+    console.log('check', this.modeWord(mode));
 
     PG.startSession(async (client) => {
-      // TODO: move PG.query from here
-      const result = await client.query(
-        `SELECT ${this.needProperties(
-          mode
-        )} FROM history, katas WHERE kata_id = id AND time < $1 AND ${mode} = true`,
-        [this.timeOfPreviousCheck().toJSON()]
-      );
+      const katas = await Kata.getPeriodicKatas(mode, this.timeOfPreviousCheck(), client);
 
-      console.log(result.rowCount, this.timeOfPreviousCheck(mode).toJSON());
+      console.log(katas.length, this.timeOfPreviousCheck());
 
-      for (const kataProperties of result.rows) {
+      for (const kata of katas) {
         //BOTTLENECK
-        const kata = Kata.initKataWithProperties(kataProperties);
         const newData = await Codewars.getKataFullInfo(kata.cid);
         await this.sendAndUpdateKata(kata, newData, mode, client);
+
+        //TODO: splitting the check into multiple clients
       }
 
       const wait = this.timeForNextCheck();
@@ -48,27 +43,31 @@ class History {
     });
   }
 
-  async sendAndUpdateKata(kata, newData, mode = 'hour', client) {
+  async sendAndUpdateKata(kata, newData, mode = 3, client) {
     const nowTime = new Date();
     newData.time = nowTime;
 
-    await this.sendChanges(kata, newData, 'hour', nowTime);
-    if (mode == 'day' || mode == 'month') {
-      await this.sendChanges(kata, newData, 'day', nowTime);
+    // TODO: think of a better way to do it
+    if (mode <= 3) {
+      await this.sendChanges(kata, newData, 3, nowTime);
     }
-    if (mode == 'month') {
-      await this.sendChanges(kata, newData, 'month', nowTime);
+    if (mode <= 2) {
+      await this.sendChanges(kata, newData, 2, nowTime);
+    }
+    if (mode <= 1) {
+      await this.sendChanges(kata, newData, 1, nowTime);
     }
 
     await kata.updateInfo(newData, mode, client);
   }
 
   async sendChanges(kata, newData, mode, nowTime = new Date()) {
-    const followers = await kata.getSuitableFollowers(mode);
+    const modeWord = this.modeWord(mode);
+    const followers = await kata.getSuitableFollowers(modeWord);
 
     if (followers.length == 0) return;
 
-    const oldData = await kata.getInfo(mode);
+    const oldData = await kata.getInfo(modeWord);
     let text = History.generateKataText(oldData, newData);
 
     if (!text) return;
@@ -101,14 +100,24 @@ class History {
   }
 
   determineMode(date) {
-    return date.getUTCHours() == this.HOUR_CHECK
-      ? this.isLastDay(date)
-        ? 'month'
-        : 'day'
-      : 'hour';
+    // mode - in history.js
+    // notification_level - in database
+
+    // 0 - never
+    // 1 - month
+    // 2 - day
+    // 3 - hour
+
+    // Zero can only be in the database, not here
+
+    return date.getUTCHours() == this.HOUR_CHECK ? (this.isLastDay(date) ? 1 : 2) : 3;
   }
 
-  timeForNextCheck(mode = 'hour') {
+  modeWord(mode) {
+    return mode === 3 ? 'hour' : mode === 2 ? 'day' : mode === 1 ? 'month' : 'never';
+  }
+
+  timeForNextCheck() {
     const nextHour = new Date();
     nextHour.setUTCHours(nextHour.getUTCHours() + 1);
     nextHour.setMinutes(0);
@@ -116,7 +125,7 @@ class History {
     return nextHour - new Date();
   }
 
-  timeOfPreviousCheck(mode = 'hour') {
+  timeOfPreviousCheck() {
     const nowTime = new Date();
     const hour = new Date(nowTime.toDateString());
     hour.setHours(nowTime.getHours());

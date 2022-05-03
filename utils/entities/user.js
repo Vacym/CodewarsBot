@@ -54,19 +54,26 @@ class User {
 
   async toggleSettings(mode, client) {
     await PG.session(client, async (client) => {
-      const settings = await client.queryLine(
-        `UPDATE settings SET ${mode} = NOT ${mode} WHERE user_id = $1 RETURNING hour, day, month`,
-        [this.id]
-      );
+      await client.queryLine(`UPDATE settings SET ${mode} = NOT ${mode} WHERE user_id = $1`, [
+        this.id,
+      ]);
 
       this[mode] = !this[mode];
 
-      const usersKatas = await Kata.getKatas((await this.getKataSet()).toArray(), client);
-      await usersKatas.updateState(client);
-      // After remake Kata's settings updateState will not be necessary
+      if (this.notification_level == this.#determineNotificationLevel()) return;
+
+      this.notification_level = this.#determineNotificationLevel();
+
+      await client.query(`UPDATE settings SET notification_level = $2 WHERE user_id = $1`, [
+        this.id,
+        this.notification_level,
+      ]);
     });
 
     return this.settings;
+
+    // Learn more about the notification level
+    // history.js > History > determineMode
   }
 
   async getKataSet(client) {
@@ -89,9 +96,13 @@ class User {
 
   //Private methods
 
-  async #initArtificially(properties) {
+  #initArtificially(properties) {
     Object.assign(this, properties);
     this.#valid = true;
+  }
+
+  #determineNotificationLevel() {
+    return this.hour ? 3 : this.day ? 2 : this.month ? 1 : 0;
   }
 
   //Getters

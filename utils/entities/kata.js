@@ -173,11 +173,11 @@ class Kata {
     return KataFilesManager.arrayToData(await KataFilesManager.getSpecificLine(this.id, hours));
   }
 
-  async getSuitableFollowers(mode) {
-    return await PG.getValidFollowers(this.id, mode);
+  async getSuitableFollowers(notificationLevel) {
+    return await PG.getValidFollowers(this.id, notificationLevel);
   }
 
-  async updateInfo(newData, mode, client) {
+  async updateInfo(newData, notificationLevel, client) {
     PG.session(client, async (client) => {
       const query = {
         text: `UPDATE history SET  \
@@ -203,7 +203,8 @@ class Kata {
 
       await client.query(query);
 
-      if (mode == 'month') {
+      if (notificationLevel == 1) {
+        // If month
         await KataFilesManager.archiveKata(
           this.id,
           newData.time.getUTCFullYear(),
@@ -218,29 +219,14 @@ class Kata {
 
   async updateState(client) {
     await PG.session(client, async (client) => {
-      const settings = await client.queryRows(
-        `SELECT hour, day, month from settings WHERE user_id IN (
-          SELECT user_id FROM subscription WHERE kata_id = $1
-        )`,
+      const countRows = await client.queryFirst(
+        `SELECT COUNT(*) FROM subscription WHERE kata_id = $1`,
         [this.id]
       );
 
-      if (settings.length === 0) {
+      if (countRows === 0) {
         await this.delete(client);
-        return;
       }
-
-      const someSettings = {};
-      for (const settingName in settings[0]) {
-        someSettings[settingName] = settings.some((setting) => Boolean(setting[settingName]));
-      }
-
-      await client.query(
-        `UPDATE history SET (hour, day, month) = (
-          $2, $3, $4
-        ) WHERE kata_id = $1`,
-        [this.id, someSettings.hour, someSettings.day, someSettings.month]
-      );
     });
   }
 
@@ -261,7 +247,6 @@ class Kata {
       const query = {
         text: `INSERT INTO history ( \
           kata_id, \
-          hour, day, month, \
           completed,      \
           stars,          \
           votes_very,     \
@@ -269,14 +254,10 @@ class Kata {
           votes_not,      \
           comments        \
         ) VALUES ( \
-          $1, $2, $3, $4, \
-          $5, $6, $7, $8, $9, $10 \
+          $1, $2, $3, $4, $5, $6, $7 \
         )`,
         values: [
           kataId,
-          kataData.hour ?? false,
-          kataData.day ?? false,
-          kataData.month ?? false,
           kataData.completed ?? 0,
           kataData.stars ?? 0,
           kataData.votes_very ?? 0,
@@ -303,6 +284,22 @@ class Kata {
       newKatas.push(newKata);
     }
     return newKatas;
+  }
+
+  static async getPeriodicKatas(notificationLevel, time, client) {
+    return await PG.session(client, async (client) => {
+      const katasData = await client.queryRows(
+        `SELECT * FROM katas, history WHERE kata_id = id AND time < $1 AND $2 <= (
+        SELECT max(notification_level) FROM settings WHERE user_id IN (
+          SELECT user_id FROM subscription WHERE kata_id = katas.id
+        )
+      )`,
+        [time.toJSON(), notificationLevel]
+      );
+
+      const katas = katasData.map((data) => this.initKataWithProperties(data));
+      return katas;
+    });
   }
 
   static initKataWithProperties(properties) {

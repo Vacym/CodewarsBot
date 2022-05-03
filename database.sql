@@ -18,10 +18,6 @@ CREATE TABLE katas (
 CREATE TABLE history (
     kata_id INT UNIQUE,
 
-    hour BOOL  NOT NULL DEFAULT TRUE,
-    day BOOL   NOT NULL DEFAULT TRUE,
-    month BOOL NOT NULL DEFAULT TRUE,
-
     time           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     completed      INT NOT NULL DEFAULT 0,
     stars          INT NOT NULL DEFAULT 0,
@@ -45,6 +41,8 @@ CREATE TABLE settings (
     hour  BOOL   NOT NULL DEFAULT TRUE,
     day   BOOL   NOT NULL DEFAULT TRUE,
     month BOOL   NOT NULL DEFAULT TRUE,
+
+    notification_level SMALLINT NOT NULL DEFAULT 3,
 
     mailing BOOL NOT NULL DEFAULT TRUE,
 
