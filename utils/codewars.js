@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import cherio from 'cherio';
+import cheerio from 'cheerio';
 
 const server = 'https://www.codewars.com/';
 
@@ -52,13 +52,13 @@ export default class Codewars {
     try {
       const response = await fetch(Codewars.getKataLink(cid));
       const req = await response.text();
-      const $ = cherio.load(req);
+      const $ = cheerio.load(req);
 
       $('.w-full.panel.bg-ui-section:last-child tr').each(function () {
         info[$(this).children(':not(.text-right)').text()] = $(this).children('.text-right').text();
       });
 
-      info.name = $('.ml-4.mb-3').text();
+      info.name = $('meta[property="og:title"]').attr('content');
       info.comments =
         $('.icon-moon-comments')
           .parent()
