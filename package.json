@@ -14,7 +14,7 @@
   "author": "Vacym",
   "license": "MIT",
   "dependencies": {
-    "cherio": "^1.0.0-rc.2",
+    "cheerio": "^1.0.0-rc.11",
     "dropbox": "^10.24.0",
     "pg": "^8.7.1",
     "telegraf": "^4.5.2"
