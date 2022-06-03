@@ -42,7 +42,7 @@ additionalFuncs.queryColumn = async function (text, values) {
   };
   const result = await this.query(query);
 
-  return result.rowCount ? result.rows.map((x) => x[0]) : null;
+  return result.rows.map((x) => x[0]);
 };
 
 additionalFuncs.getValidFollowers = async function (kataId, mode = 'hour') {

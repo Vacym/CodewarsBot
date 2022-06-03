@@ -12,7 +12,6 @@ const addAuthorsKatasScene = new Scenes.WizardScene(
   'addAuthorsKatas',
   Telegraf.on('text', async (ctx) => {
     let subscribeObject = convertAuthorOrKata(ctx.message.text);
-    console.log(subscribeObject);
 
     if (subscribeObject.type != 'users') {
       ctx.reply('Incorrect input format', mainMenuKb());
@@ -33,41 +32,34 @@ const addAuthorsKatasScene = new Scenes.WizardScene(
       return ctx.scene.leave();
     }
 
-    const client = await PG.getClient();
+    await PG.startSession(
+      async (client) => {
+        const usersKatasIds = await user.getKataIds(client);
+        const dbKatas = await Kata.getExistingKatas(author.katas.cids);
 
-    try {
-      await client.query('BEGIN');
+        const userKatas = dbKatas.filter((kata) => usersKatasIds.includes(kata.id));
+        const newKatas = excreptNewKatas(author.katas, userKatas.cids);
 
-      const usersKatasIds = await user.getKataIds();
-      const oldKatas = await Kata.getExistingKatas(author.katas.cids);
+        sc.newKatas = newKatas;
+        sc.dbKatas = dbKatas;
 
-      const oldUserKatas = oldKatas.filter((kata) => usersKatasIds.includes(kata.id));
-      const oldUserKatasCids = oldUserKatas.map((kata) => kata.cid);
-      const newKatas = excerptNewKatas(author.katas, oldUserKatasCids);
-      console.log('new', newKatas);
-      sc.newKatas = newKatas;
-      sc.oldKatas = oldKatas;
-
-      ctx.wizard.next();
-      ctx.reply(
-        `\
+        ctx.wizard.next();
+        ctx.reply(
+          `\
   You are not subscribed to ${newKatas.approved.length} from ${author.katas.approved.length} approved katas
   You are not subscribed to ${newKatas.beta.length} from ${author.katas.beta.length} beta katas
   
   Which katas do you want to subscribe for?\
   `,
-        approvedBetaKatasKb()
-      );
-
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      ctx.scene.leave();
-      ctx.reply('Error', mainMenuKb());
-      console.error(e);
-    } finally {
-      client.release();
-    }
+          approvedBetaKatasKb()
+        );
+      },
+      (e) => {
+        ctx.scene.leave();
+        ctx.reply('Error', mainMenuKb());
+        console.error(e);
+      }
+    );
   }),
   Telegraf.on('text', async (ctx) => {
     const { approved, beta } = convertChoosingTypeOfKataString(ctx.message.text);
@@ -78,41 +70,45 @@ const addAuthorsKatasScene = new Scenes.WizardScene(
 
     const sc = ctx.scene.state;
     const user = ctx.session.user;
-    const newKatas = sc.newKatas;
-    const oldKatas = sc.oldKatas;
-    const oldKatasCids = oldKatas.map((kata) => kata.cid);
+    const dbKatas = sc.dbKatas;
+    let newKatas = sc.newKatas;
 
-    const katasCidsForCreate = new CodewarsKataArray();
-    const katasForUpdate = new KatasArray();
+    // Filter the right kinds of katas
+    if (approved !== beta) {
+      newKatas = beta ? newKatas.beta : newKatas.approved;
+    }
 
-    if (approved) separateCreateAndUpdate(newKatas.approved.cids);
-    if (beta) separateCreateAndUpdate(newKatas.beta.cids);
-
-    console.log('KatasCidsForCreate', katasCidsForCreate);
-    console.log('KatasForUpdate', katasForUpdate);
+    const { kataCidsForCreate, katasForUpdate } = separateCreateAndUpdate(newKatas.cids, dbKatas);
 
     const dataOfNewKatas = [];
-    for (const cid of katasCidsForCreate) {
+    for (const cid of kataCidsForCreate) {
       //BOTTLENECK
       dataOfNewKatas.push(await Codewars.getKataFullInfo(cid));
     }
 
-    const createdKatas = await Kata.createKatas(dataOfNewKatas);
-    await user.addKatas(katasForUpdate);
-    await user.addKatas(createdKatas);
+    await PG.startSession(async (client) => {
+      const createdKatas = await Kata.createKatas(dataOfNewKatas, client);
+      await user.addKatas(katasForUpdate, client);
+      await user.addKatas(createdKatas, client);
+    });
+
+    ctx.reply(`You have been subscribed to ${newKatas.length} katas`, mainMenuKb());
 
     return ctx.scene.leave();
 
-    // TODO adequate algorithm
+    function separateCreateAndUpdate(cids, dbKatas) {
+      const kataCidsForCreate = new CodewarsKataArray();
+      const katasForUpdate = new KatasArray();
+      const dbKatasCids = dbKatas.cids;
 
-    function separateCreateAndUpdate(cids) {
       for (const cid of cids) {
-        if (oldKatasCids.includes(cid)) {
-          katasForUpdate.push(oldKatas.find((kata) => kata.cid == cid));
+        if (dbKatasCids.includes(cid)) {
+          katasForUpdate.push(dbKatas.find((kata) => kata.cid == cid));
         } else {
-          katasCidsForCreate.push(cid);
+          kataCidsForCreate.push(cid);
         }
       }
+      return { kataCidsForCreate, katasForUpdate };
     }
   })
 );
@@ -123,7 +119,6 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
   'deleteAuthorsKatas',
   Telegraf.on('text', async (ctx) => {
     let subscribeObject = convertAuthorOrKata(ctx.message.text);
-    console.log(subscribeObject);
 
     if (subscribeObject.type != 'users') {
       ctx.reply('Incorrect input format', mainMenuKb());
@@ -144,41 +139,34 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
       return ctx.scene.leave();
     }
 
-    const client = await PG.getClient();
+    await PG.startSession(
+      async (client) => {
+        const usersKatasIds = await user.getKataIds(client);
+        const dbKatas = await Kata.getExistingKatas(author.katas.cids);
 
-    try {
-      await client.query('BEGIN');
+        const userKatas = dbKatas.filter((kata) => usersKatasIds.includes(kata.id));
+        const oldKatas = excreptOldKatas(author.katas, userKatas.cids);
 
-      const usersKatasIds = await user.getUsersKataIds();
-      const oldKatas = await Kata.getExistingKatas(author.katas.cids);
+        sc.oldKatas = oldKatas;
+        sc.dbKatas = dbKatas;
 
-      const oldUserKatas = oldKatas.filter((kata) => usersKatasIds.includes(kata.id));
-      const oldUserKatasCids = oldUserKatas.map((kata) => kata.cid);
-      const oldCodewarsKatas = excerptOldKatas(author.katas, oldUserKatasCids);
-      console.log('new', oldCodewarsKatas);
-      sc.oldCodewarsKatas = oldCodewarsKatas;
-      sc.oldKatas = oldKatas;
-
-      ctx.wizard.next();
-      ctx.reply(
-        `\
-  You are subscribed to ${oldCodewarsKatas.approved.length} from ${author.katas.approved.length} approved katas
-  You are subscribed to ${oldCodewarsKatas.beta.length} from ${author.katas.beta.length} beta katas
+        ctx.wizard.next();
+        ctx.reply(
+          `\
+  You are subscribed to ${oldKatas.approved.length} from ${author.katas.approved.length} approved katas
+  You are subscribed to ${oldKatas.beta.length} from ${author.katas.beta.length} beta katas
   
   What katas do you want to unsubscribe to?\
   `,
-        approvedBetaKatasKb()
-      );
-
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      ctx.scene.leave();
-      ctx.reply('Error', mainMenuKb());
-      console.error(e);
-    } finally {
-      client.release();
-    }
+          approvedBetaKatasKb()
+        );
+      },
+      (e) => {
+        ctx.scene.leave();
+        ctx.reply('Error', mainMenuKb());
+        console.error(e);
+      }
+    );
   }),
   Telegraf.on('text', async (ctx) => {
     const { approved, beta } = convertChoosingTypeOfKataString(ctx.message.text);
@@ -188,13 +176,31 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
     }
 
     const sc = ctx.scene.state;
-    const oldCodewarsKatas = sc.oldCodewarsKatas;
-    const oldKatas = sc.oldKatas;
-    const oldKatasCids = oldKatas.map((kata) => kata.cid);
+    const user = ctx.session.user;
+    const dbKatas = sc.dbKatas;
+    let oldKatas = sc.oldKatas;
 
-    // TO DO: deleting katas
+    // Filter the right kinds of katas
+    if (approved !== beta) {
+      oldKatas = beta ? oldKatas.beta : oldKatas.approved;
+    }
+
+    const katasForDelete = matchDeleteKatas(oldKatas.cids, dbKatas);
+
+    await user.deleteKatas(katasForDelete);
+
+    ctx.reply(`You have been unsubscribed to ${oldKatas.length} katas`, mainMenuKb());
 
     return ctx.scene.leave();
+
+    function matchDeleteKatas(cids, dbKatas) {
+      const katasForDelete = new KatasArray();
+
+      for (const cid of cids) {
+        katasForDelete.push(dbKatas.find((kata) => kata.cid == cid));
+      }
+      return katasForDelete;
+    }
   })
 );
 
@@ -202,12 +208,12 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
 
 deleteAuthorsKatasScene.enter((ctx) => ctx.reply('Enter author', removeKd()));
 
-function excerptNewKatas(authorsKatas, oldKatasCids) {
-  return authorsKatas.filter((kata) => oldKatasCids.includes(kata.cid) == false);
+function excreptNewKatas(authorsKatas, dbKatasCids) {
+  return authorsKatas.filter((kata) => dbKatasCids.includes(kata.cid) == false);
 }
 
-function excerptOldKatas(authorsKatas, oldKatasCids) {
-  return authorsKatas.filter((kata) => oldKatasCids.includes(kata.cid));
+function excreptOldKatas(authorsKatas, dbKatasCids) {
+  return authorsKatas.filter((kata) => dbKatasCids.includes(kata.cid));
 }
 
 function convertChoosingTypeOfKataString(typeString) {
