@@ -112,6 +112,10 @@ class KatasArray extends Array {
   get ids() {
     return Array.from(this.map((kata) => kata.id));
   }
+
+  get cids() {
+    return Array.from(this.map((kata) => kata.cid));
+  }
 }
 
 class Kata {
@@ -218,13 +222,14 @@ class Kata {
   }
 
   async updateState(client) {
+    // Delete kata if no one is subscribed to it
     await PG.session(client, async (client) => {
       const countRows = await client.queryFirst(
         `SELECT COUNT(*) FROM subscription WHERE kata_id = $1`,
         [this.id]
       );
 
-      if (countRows === 0) {
+      if (countRows == 0) {
         await this.delete(client);
       }
     });
@@ -276,11 +281,11 @@ class Kata {
     });
   }
 
-  static async createKatas(katasData = [], userId) {
+  static async createKatas(katasData = [], client) {
     const newKatas = new KatasArray();
     for (const kataData of katasData) {
       //BOTTLENECK
-      const newKata = await Kata.createKata(kataData.id, kataData);
+      const newKata = await Kata.createKata(kataData.id, kataData, client);
       newKatas.push(newKata);
     }
     return newKatas;
@@ -297,12 +302,12 @@ class Kata {
         [time.toJSON(), notificationLevel]
       );
 
-      const katas = katasData.map((data) => this.initKataWithProperties(data));
+      const katas = katasData.map((data) => this.#initKataWithProperties(data));
       return katas;
     });
   }
 
-  static initKataWithProperties(properties) {
+  static #initKataWithProperties(properties) {
     const kata = new Kata({ id: properties.id });
     kata.valid = true;
     Object.assign(kata, properties);
@@ -320,7 +325,7 @@ class Kata {
     );
 
     const katas = new KatasArray(
-      ...katasRequest.rows.map((properties) => Kata.initKataWithProperties(properties))
+      ...katasRequest.rows.map((properties) => Kata.#initKataWithProperties(properties))
     );
 
     return katas;
@@ -333,7 +338,7 @@ class Kata {
       );
 
       const katas = new KatasArray(
-        ...katasRequest.rows.map((properties) => Kata.initKataWithProperties(properties))
+        ...katasRequest.rows.map((properties) => Kata.#initKataWithProperties(properties))
       );
 
       return katas;
