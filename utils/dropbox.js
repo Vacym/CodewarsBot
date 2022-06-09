@@ -96,7 +96,7 @@ class DbxfsCashe {
     try {
       return fs.readFileSync(localFilePath, options);
     } catch (err) {
-      if (err.errno == -4058) {
+      if (err.code === 'ENOENT') {
         // No such file or directory
         // It means that file is not loaded yet
 
@@ -115,7 +115,7 @@ class DbxfsCashe {
     try {
       fs.writeFileSync(localFilePath, data, options);
     } catch (err) {
-      if (err.errno == -4058) {
+      if (err.code === 'ENOENT') {
         // No such file or directory
         // This means that the path are not prepared
         // But does this path exist on dropbox?
@@ -142,7 +142,7 @@ class DbxfsCashe {
     try {
       fs.copyFileSync(localFromFilePath, localToFilePath);
     } catch (err) {
-      if (err.errno == -4058) {
+      if (err.code === 'ENOENT') {
         // No such file or directory
         // This means that the file is not downloaded
         // But does this file exist on dropbox?
@@ -171,7 +171,7 @@ class DbxfsCashe {
     try {
       fs.unlinkSync(localFilePath);
     } catch (err) {
-      if (err.errno == -4058) {
+      if (err.code === 'ENOENT') {
         // No such file or directory
         // This means that the file is not downloaded
         // But does this file exist on dropbox?
@@ -220,6 +220,6 @@ class DbxfsCashe {
   }
 }
 
-const dbxfs = new DbxfsCashe({ dbxRoot: '/history', localRoot: '/tmp', dbx });
+const dbxfs = new DbxfsCashe({ dbxRoot: '/history', localRoot: 'file:///tmp', dbx });
 
 export default dbxfs;
