@@ -1,4 +1,4 @@
-import dbfs from '../dropbox.js';
+import dbxfs from '../dropbox.js';
 import PG from '../pg.js';
 import toin from '../toin.js';
 
@@ -22,7 +22,7 @@ class KataFilesManager {
     const firstDataArray = KataFilesManager.dataToArray(firstData);
     const firstDataBin = toin.create([firstDataArray], { bits: 32 });
 
-    return await dbfs.writeFile(`/history/lastMonthHistory/${kataId}.toin`, firstDataBin);
+    return await dbxfs.writeFile(`/lastMonthHistory/${kataId}.toin`, firstDataBin);
   }
 
   static async updateKata(kataId, newData) {
@@ -30,18 +30,18 @@ class KataFilesManager {
     const oldDataBin = await KataFilesManager.getKata(kataId);
     const addedDataBin = toin.add(oldDataBin, [newDataArray]);
 
-    return await dbfs.writeFile(`/history/lastMonthHistory/${kataId}.toin`, addedDataBin);
+    return await dbxfs.writeFile(`/lastMonthHistory/${kataId}.toin`, addedDataBin);
   }
 
   static async archiveKata(kataId, year, month) {
-    return await dbfs.copyFile(
-      `/history/lastMonthHistory/${kataId}.toin`,
-      `/history/monthHistory/${kataId}_${year}_${month}.toin`
+    return await dbxfs.copyFile(
+      `/lastMonthHistory/${kataId}.toin`,
+      `/monthHistory/${kataId}_${year}_${month}.toin`
     );
   }
 
   static async getKata(kataId) {
-    return await dbfs.readFile(`/history/lastMonthHistory/${kataId}.toin`);
+    return await dbxfs.readFile(`/lastMonthHistory/${kataId}.toin`);
   }
 
   static async getSpecificLine(kataId, hours) {
@@ -65,7 +65,7 @@ class KataFilesManager {
   }
 
   static async deleteKata(kataId) {
-    dbfs.deleteFile(`/history/lastMonthHistory/${kataId}.toin`);
+    dbxfs.deleteFile(`/lastMonthHistory/${kataId}.toin`);
   }
 
   static dataToArray(data = {}) {

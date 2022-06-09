@@ -8,42 +8,13 @@ const dbx = new Dropbox({
   clientSecret: global.process.env.DROPBOX_APP_SECRET,
 });
 
-class Dbfs {
-  static async readFile(path) {
-    const f = await dbx.filesDownload({ path });
-    return f.result.fileBinary;
-  }
-
-  static async writeFile(path, contents, flag) {
-    return await dbx.filesUpload({ path, contents, mode: 'overwrite' });
-  }
-
-  static async copyFile(from_path, to_path) {
-    return await dbx.filesCopyV2({ from_path, to_path });
-  }
-
-  static async addToFile(path, contents) {
-    const oldFile = await Dbfs.readFile(path);
-    const newFile = Buffer.concat([oldFile, contents]);
-    await Dbfs.writeFile(path, newFile);
-  }
-
-  static async deleteFile(path) {
-    dbx.filesDelete({ path });
-  }
-
-  static async getMetadata(path) {
-    return (await dbx.filesGetMetadata({ path })).result;
-  }
-}
-
-class DbfsSynchronizer {
+class DbxfsSynchronizer {
   #mainQueue;
   #queueFunctions;
 
-  constructor(dbx, dbfs) {
+  constructor(dbx, dbxfs) {
     this.dbx = dbx;
-    this.dbfs = dbfs;
+    this.dbxfs = dbxfs;
 
     this.#mainQueue = [];
 
@@ -65,24 +36,24 @@ class DbfsSynchronizer {
   #generateAllQueueHandlers() {
     this.#queueFunctions = {
       write: async (filePath) => {
-        const localPath = this.dbfs.constructLocalPath(filePath);
-        const dbPath = this.dbfs.constructDbPath(filePath);
+        const localPath = this.dbxfs.constructLocalPath(filePath);
+        const dbxPath = this.dbxfs.constructDbxPath(filePath);
         const contents = fs.readFileSync(localPath);
 
-        await this.dbx.filesUpload({ path: dbPath, contents, mode: 'overwrite' });
+        await this.dbx.filesUpload({ path: dbxPath, contents, mode: 'overwrite' });
       },
 
       delete: async (filePath) => {
-        const dbPath = this.dbfs.constructDbPath(filePath);
+        const dbxPath = this.dbxfs.constructDbxPath(filePath);
 
-        await this.dbx.filesDeleteV2({ path: dbPath });
+        await this.dbx.filesDeleteV2({ path: dbxPath });
       },
 
       copy: async (from_path, to_path) => {
-        const dbFromPath = this.dbfs.constructDbPath(from_path);
-        const dbToPath = this.dbfs.constructDbPath(to_path);
+        const dbxFromPath = this.dbxfs.constructDbxPath(from_path);
+        const dbxToPath = this.dbxfs.constructDbxPath(to_path);
 
-        await dbx.filesCopyV2({ from_path: dbFromPath, to_path: dbToPath });
+        await this.dbx.filesCopyV2({ from_path: dbxFromPath, to_path: dbxToPath });
       },
     };
   }
@@ -109,14 +80,15 @@ class DbfsSynchronizer {
   }
 }
 
-class DbfsCashe {
+class DbxfsCashe {
   constructor(options) {
     options = options || {};
 
-    this.dbRoot = options.dbRoot || '';
+    this.dbx = options.dbx;
+    this.dbxRoot = options.dbxRoot || '';
     this.localRoot = options.localRoot || '';
 
-    this.dbfsSynchronizer = new DbfsSynchronizer(dbx, this);
+    this.dbxfsSynchronizer = new DbxfsSynchronizer(this.dbx, this);
   }
 
   async readFile(filePath, options = {}) {
@@ -128,7 +100,7 @@ class DbfsCashe {
         // No such file or directory
         // It means that file is not loaded yet
 
-        await this.downloadFile(filePath);
+        await this.#downloadFile(filePath);
         return fs.readFileSync(localFilePath, options);
       } else {
         throw err;
@@ -138,7 +110,7 @@ class DbfsCashe {
 
   async writeFile(filePath, data, options) {
     const localFilePath = this.constructLocalPath(filePath);
-    const dbFolderPath = this.constructDbPath(path.dirname(filePath));
+    const dbxFolderPath = this.constructDbxPath(path.dirname(filePath));
 
     try {
       fs.writeFileSync(localFilePath, data, options);
@@ -148,24 +120,24 @@ class DbfsCashe {
         // This means that the path are not prepared
         // But does this path exist on dropbox?
 
-        await dbx.filesListFolder({ path: dbFolderPath, limit: 1 });
+        await this.dbx.filesListFolder({ path: dbxFolderPath, limit: 1 });
         // An exception is thrown if the folder does not exist
 
-        this.preparePath(localFilePath);
+        this.#preparePath(localFilePath);
         fs.writeFileSync(localFilePath, data, options);
       } else {
         throw err;
       }
     }
 
-    this.dbfsSynchronizer.addToWriteQueue(filePath);
+    this.dbxfsSynchronizer.addToWriteQueue(filePath);
   }
 
   async copyFile(from_path, to_path) {
     const localFromFilePath = this.constructLocalPath(from_path);
     const localToFilePath = this.constructLocalPath(to_path);
-    const dbFromFilePath = this.constructDbPath(from_path);
-    const dbToFolderPath = this.constructDbPath(path.dirname(to_path));
+    const dbxFromFilePath = this.constructDbxPath(from_path);
+    const dbxToFolderPath = this.constructDbxPath(path.dirname(to_path));
 
     try {
       fs.copyFileSync(localFromFilePath, localToFilePath);
@@ -175,16 +147,16 @@ class DbfsCashe {
         // This means that the file is not downloaded
         // But does this file exist on dropbox?
 
-        await dbx.filesListFolder({ path: dbToFolderPath, limit: 1 });
-        await dbx.filesGetMetadata({ path: dbFromFilePath });
+        await this.dbx.filesListFolder({ path: dbxToFolderPath, limit: 1 });
+        await this.dbx.filesGetMetadata({ path: dbxFromFilePath });
         // An exception is thrown if the folder does not exist
 
-        this.preparePath(localToFilePath);
+        this.#preparePath(localToFilePath);
       } else {
         throw err;
       }
 
-      this.dbfsSynchronizer.addToCopyQueue(from_path, to_path);
+      this.dbxfsSynchronizer.addToCopyQueue(from_path, to_path);
     }
   }
 
@@ -194,7 +166,7 @@ class DbfsCashe {
 
   async deleteFile(filePath) {
     const localFilePath = this.constructLocalPath(filePath);
-    const dbFilePath = this.constructDbPath(filePath);
+    const dbxFilePath = this.constructDbxPath(filePath);
 
     try {
       fs.unlinkSync(localFilePath);
@@ -204,28 +176,28 @@ class DbfsCashe {
         // This means that the file is not downloaded
         // But does this file exist on dropbox?
 
-        await dbx.filesGetMetadata({ path: dbFilePath });
+        await this.dbx.filesGetMetadata({ path: dbxFilePath });
         // An exception is thrown if the file does not exist
       } else {
         throw err;
       }
     }
 
-    this.dbfsSynchronizer.addToDeleteQueue(filePath);
+    this.dbxfsSynchronizer.addToDeleteQueue(filePath);
   }
 
   // Internal methods
 
-  async downloadFile(filePath) {
-    const file = await dbx.filesDownload({ path: this.constructDbPath(filePath) });
+  async #downloadFile(filePath) {
+    const file = await this.dbx.filesDownload({ path: this.constructDbxPath(filePath) });
 
     const localFilePath = this.constructLocalPath(file.result.path_display);
 
-    this.preparePath(localFilePath);
+    this.#preparePath(localFilePath);
     fs.writeFileSync(localFilePath, file.result.fileBinary);
   }
 
-  preparePath(filePath) {
+  #preparePath(filePath) {
     // Create folders for file
 
     const folders = path.dirname(filePath).split(/(?!^)\//);
@@ -239,15 +211,15 @@ class DbfsCashe {
     }
   }
 
-  constructDbPath(filePath) {
-    return this.dbRoot + filePath;
+  constructDbxPath(filePath) {
+    return this.dbxRoot + filePath;
   }
 
   constructLocalPath(filePath) {
-    return this.localRoot + filePath.replace(this.dbRoot, '');
+    return this.localRoot + filePath.replace(this.dbxRoot, '');
   }
 }
 
-const dbfs = new DbfsCashe({ dbRoot: '', localRoot: '/tmp' });
+const dbxfs = new DbxfsCashe({ dbxRoot: '/history', localRoot: '/tmp', dbx });
 
-export default dbfs;
+export default dbxfs;
