@@ -16,16 +16,15 @@ Feedback is appreciated (GitHub issues).
 
 The following environment variables are required:
 
-- `DATABASE_URL`:
-- `TOKEN`:
-- `MODE`:
-- `MODE`:
-- `ADMINS`:
+- `DATABASE_URL`: Database access string
+- `TOKEN`: Access token for telegram bot
+- `MODE`: Empty string in local and not empty in server
+- `ADMINS`: List of admins
 - `DROPBOX_REFRESH_TOKEN`:
 - `DROPBOX_APP_KEY`:
 - `DROPBOX_APP_SECRET`:
 
-Use `.env.development` (gitignored) to configure these variables.
+Use `.env` (gitignored) to configure these variables.
 
 ## Development Setup
 
