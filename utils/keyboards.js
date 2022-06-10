@@ -3,7 +3,7 @@ import { Markup } from 'telegraf';
 export function mainMenuKb() {
   return Markup.keyboard([
     ['Add kata', 'Delete kata'],
-    ["Add author's katas", "Delete author's katas"],
+    ['Add author', 'Delete author'],
     ['Menu'],
   ]).resize();
 }
@@ -38,4 +38,12 @@ export function settingsKb(settings) {
 
 export function approvedBetaKatasKb() {
   return Markup.keyboard([['Approved', 'Beta'], ['Both'], ['Neither']]).resize();
+}
+
+export function iformationKb() {
+  return Markup.inlineKeyboard([
+    [Markup.button.url(`Github`, 'https://github.com/Vacym/codewarsBot')],
+    [Markup.button.url(`Chat me`, 'https://t.me/Vacymm')],
+    [backButton('menu')],
+  ]);
 }

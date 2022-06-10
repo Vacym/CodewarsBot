@@ -4,7 +4,8 @@
   "description": "Bot for tracking katas at Codewars in Telegram",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "heroku": "heroku local"
   },
   "type": "module",
   "keywords": [
