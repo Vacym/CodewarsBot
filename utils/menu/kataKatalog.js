@@ -59,10 +59,11 @@ export default [
         return [Markup.button.callback(kata[1], `kata_info:${kata[0]}`)];
       });
 
-      ctx.editMessageText(
-        'Loaded!',
-        Markup.inlineKeyboard([...katasKeyboard, [backButton('menu')]])
-      );
+      const text = katasKeyboard.length
+        ? 'Catalog of katas'
+        : 'You are not a subscriber to any of the katas';
+
+      ctx.editMessageText(text, Markup.inlineKeyboard([...katasKeyboard, [backButton('menu')]]));
     },
   ],
   [

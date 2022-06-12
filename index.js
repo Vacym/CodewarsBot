@@ -37,14 +37,16 @@ history.startTracking();
 bot.start((ctx) => {
   ctx.reply(
     `\
-In order to subscribe to the kata, click "Add kata".
-Then paste the link to this kata and confirm the subscription.
+To subscribe or unsubscribe to the kata click "Add kata"/"Delete kata" button.
+Then paste the link to this kata and confirm operation.
 
-To unsubscribe from the kata click "Delete kata" button
-Then paste the link to that kata and confirm unsubscribe.
+To subscribe or unsubscribe to the all katas of a certain author click "Add author"/"Delete author" button.
+Then paste the link or nickname of the author and choose which type of katas (Beta or Approved).
+
+You can check the status of the katas you are subscribed to by clicking "Menu" > "Catalog of katas"
 
 If you want to change the frequency of incoming change notifications of katas 
-Press the "Menu" button, then in the window that appears press "Notification settings" `,
+Сlick the "Menu" button, then in the window that appears click "Notification settings" `,
     mainMenuKb()
   );
 });
@@ -61,11 +63,11 @@ bot.hears('Delete kata', async (ctx) => {
   await ctx.scene.enter('deleteKata');
 });
 
-bot.hears("Add author's katas", async (ctx) => {
+bot.hears('Add author', async (ctx) => {
   await ctx.scene.enter('addAuthorsKatas');
 });
 
-bot.hears("Delete author's katas", async (ctx) => {
+bot.hears('Delete author', async (ctx) => {
   await ctx.scene.enter('deleteAuthorsKatas');
 });
 

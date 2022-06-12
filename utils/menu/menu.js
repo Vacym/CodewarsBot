@@ -26,11 +26,11 @@ function addActionsBot(bot, actions) {
 }
 
 const firstMenu = [
-  "This is the menu (Honestly, I just don't know what to write here.)",
+  'Menu',
   Markup.inlineKeyboard([
     [Markup.button.callback('Notification settings', 'notification_settings')],
-    [Markup.button.callback('Catalog of kats', 'kata_katalog')],
-    [Markup.button.callback('Information', 'information')],
+    [Markup.button.callback('Catalog of katas', 'kata_katalog')],
+    [Markup.button.callback('About', 'information')],
   ]),
 ];
 
