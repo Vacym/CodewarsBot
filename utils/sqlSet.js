@@ -1,7 +1,5 @@
 import PG from './pg.js';
 
-const nameDB = 'subscription';
-
 class SqlSet {
   #set;
   #userId;
@@ -70,7 +68,7 @@ class SqlKataSet extends SqlSet {
 
 class SqlSetManager {
   static async getKataSet(userId) {
-    const response = await PG.queryColumn(`SELECT kata_id from ${nameDB} WHERE user_id = $1`, [
+    const response = await PG.queryColumn(`SELECT kata_id from subscription WHERE user_id = $1`, [
       userId,
     ]);
     const kataSet = new SqlKataSet(userId, response);
@@ -78,7 +76,7 @@ class SqlSetManager {
   }
 
   static async getUserSet(kataId) {
-    const response = await PG.queryColumn(`SELECT user_id from ${nameDB} WHERE kata_id = $1`, [
+    const response = await PG.queryColumn(`SELECT user_id from subscription WHERE kata_id = $1`, [
       kataId,
     ]);
     const userSet = new SqlUserSet(kataId, response);
@@ -109,13 +107,28 @@ class SqlSetManager {
   static async getUsersKataCids(userId, client) {
     return await client.queryColumn(
       `SELECT cid FROM katas WHERE id IN (
-        SELECT kata_id from ${nameDB} WHERE user_id = $1
+        SELECT kata_id from subscription WHERE user_id = $1
       )`,
       [userId]
     );
   }
+
   static async getUsersKataIds(userId, client) {
-    return await client.queryColumn(`SELECT kata_id from ${nameDB} WHERE user_id = $1`, [userId]);
+    return await client.queryColumn(`SELECT kata_id from subscription WHERE user_id = $1`, [
+      userId,
+    ]);
+  }
+
+  static async getKataSetSize(userId, client) {
+    return await client.queryFirst(`SELECT COUNT(*) FROM subscription WHERE user_id = $1`, [
+      userId,
+    ]);
+  }
+
+  static async getUserSetSize(kataId, client) {
+    return await client.queryFirst(`SELECT COUNT(*) FROM subscription WHERE kata_id = $1`, [
+      kataId,
+    ]);
   }
 
   // TODO: create methods:

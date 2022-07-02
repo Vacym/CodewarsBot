@@ -1,5 +1,6 @@
 import dbxfs from '../dropbox.js';
 import PG from '../pg.js';
+import SqlSetManager from '../sqlSet.js';
 import toin from '../toin.js';
 
 /*
@@ -224,10 +225,7 @@ class Kata {
   async updateState(client) {
     // Delete kata if no one is subscribed to it
     await PG.session(client, async (client) => {
-      const countRows = await client.queryFirst(
-        `SELECT COUNT(*) FROM subscription WHERE kata_id = $1`,
-        [this.id]
-      );
+      const countRows = await SqlSetManager.getUserSetSize(this.id, client);
 
       if (countRows == 0) {
         await this.delete(client);
@@ -295,10 +293,10 @@ class Kata {
     return await PG.session(client, async (client) => {
       const katasData = await client.queryRows(
         `SELECT * FROM katas, history WHERE kata_id = id AND time < $1 AND $2 <= (
-        SELECT max(notification_level) FROM settings WHERE user_id IN (
-          SELECT user_id FROM subscription WHERE kata_id = katas.id
-        )
-      )`,
+          SELECT max(notification_level) FROM settings WHERE user_id IN (
+            SELECT user_id FROM subscription WHERE kata_id = katas.id
+          )
+        )`,
         [time.toJSON(), notificationLevel]
       );
 
