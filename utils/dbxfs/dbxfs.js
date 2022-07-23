@@ -1,3 +1,3 @@
-import DbxfsCashe from './dbxfsCashe.js';
+import DbxfsCashe from './dbxfsCache.js';
 
 export { DbxfsCashe as Dbxfs };

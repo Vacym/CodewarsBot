@@ -1,7 +1,7 @@
 import { Markup } from 'telegraf';
 
 import notificationSettings from './notificationSettings.js';
-import kataKatalog from './kataKatalog.js';
+import kataKatalog from './kataCatalog.js';
 import information from './information.js';
 
 import send from './../send.js';
