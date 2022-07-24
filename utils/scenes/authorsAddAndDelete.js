@@ -38,7 +38,7 @@ const addAuthorsKatasScene = new Scenes.WizardScene(
         const dbKatas = await Kata.getExistingKatas(author.katas.cids);
 
         const userKatas = dbKatas.filter((kata) => usersKatasIds.includes(kata.id));
-        const newKatas = excreptNewKatas(author.katas, userKatas.cids);
+        const newKatas = excerptNewKatas(author.katas, userKatas.cids);
 
         sc.newKatas = newKatas;
         sc.dbKatas = dbKatas;
@@ -145,7 +145,7 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
         const dbKatas = await Kata.getExistingKatas(author.katas.cids);
 
         const userKatas = dbKatas.filter((kata) => usersKatasIds.includes(kata.id));
-        const oldKatas = excreptOldKatas(author.katas, userKatas.cids);
+        const oldKatas = excerptOldKatas(author.katas, userKatas.cids);
 
         sc.oldKatas = oldKatas;
         sc.dbKatas = dbKatas;
@@ -208,11 +208,11 @@ const deleteAuthorsKatasScene = new Scenes.WizardScene(
 
 deleteAuthorsKatasScene.enter((ctx) => ctx.reply('Enter author', removeKd()));
 
-function excreptNewKatas(authorsKatas, dbKatasCids) {
+function excerptNewKatas(authorsKatas, dbKatasCids) {
   return authorsKatas.filter((kata) => dbKatasCids.includes(kata.cid) == false);
 }
 
-function excreptOldKatas(authorsKatas, dbKatasCids) {
+function excerptOldKatas(authorsKatas, dbKatasCids) {
   return authorsKatas.filter((kata) => dbKatasCids.includes(kata.cid));
 }
 

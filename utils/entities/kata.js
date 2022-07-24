@@ -46,7 +46,7 @@ class KataFilesManager {
 
   static async getSpecificLine(kataId, hours) {
     const kataBin = await KataFilesManager.getKata(kataId);
-    const { bytes, lineLength } = toin.getPropertiesFtin(kataBin);
+    const { bytes, lineLength } = toin.getPropertiesToin(kataBin);
     const bytesOnLine = lineLength * bytes;
 
     // Finding a number that <= hours, by brute-force from the end
@@ -122,10 +122,10 @@ class Kata {
   constructor(options = {}) {
     // id - kata id in database;
     // cid - kata id in Codewars;
-    // Shuld be at least one of them
+    // Should be at least one of them
 
     if ('id' in options === 'cid' in options) {
-      throw 'Exactly one of the parameters shuld be defined';
+      throw 'Exactly one of the parameters should be defined';
     }
 
     this.cid = options.cid;
@@ -277,7 +277,7 @@ class Kata {
       await KataFilesManager.createKata(kataId, kataData);
 
       return new Kata({ id: kataId });
-      // TODO: return inited kata
+      // TODO: return initialized kata
     });
   }
 
@@ -295,10 +295,10 @@ class Kata {
     return await PG.session(client, async (client) => {
       const katasData = await client.queryRows(
         `SELECT * FROM katas, history WHERE kata_id = id AND time < $1 AND $2 <= (
-        SELECT max(notification_level) FROM settings WHERE user_id IN (
-          SELECT user_id FROM subscription WHERE kata_id = katas.id
-        )
-      )`,
+          SELECT max(notification_level) FROM settings WHERE user_id IN (
+            SELECT user_id FROM subscription WHERE kata_id = katas.id
+          )
+        )`,
         [time.toJSON(), notificationLevel]
       );
 

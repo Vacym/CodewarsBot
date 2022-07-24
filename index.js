@@ -15,7 +15,7 @@ const bot = new Telegraf(global.process.env.TOKEN);
 bot.telegram.sendMessage(ADMINS[0], `Starting a ${MODE ? 'remote' : 'local'} server`);
 // Notification for me
 
-// Middlewares
+// Middleware
 
 import { session } from './utils/session.js';
 import userManager from './utils/userManager.js';
@@ -46,7 +46,7 @@ Then paste the link or nickname of the author and choose which type of katas (Be
 You can check the status of the katas you are subscribed to by clicking "Menu" > "Catalog of katas"
 
 If you want to change the frequency of incoming change notifications of katas 
-Сlick the "Menu" button, then in the window that appears click "Notification settings" `,
+Click the "Menu" button, then in the window that appears click "Notification settings" `,
     mainMenuKb()
   );
 });

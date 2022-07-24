@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import DbxfsSynchronizer from './dbxfsSynchronizer.js';
 
-class DbxfsCashe {
+class DbxfsCache {
   constructor(options) {
     options = options || {};
 
@@ -142,4 +142,4 @@ class DbxfsCashe {
   }
 }
 
-export default DbxfsCashe;
+export default DbxfsCache;

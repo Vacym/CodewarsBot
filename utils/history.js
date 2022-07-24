@@ -211,13 +211,13 @@ Comments: <b>${newData.comments}</b> <i>(${sign(delta)})</i>.`;
       newData.rating =
         ((newData.votes_very + newData.votes_somewhat / 2) / newData.totalVotes) * 100;
 
-      const deltaVoites = newData.totalVotes - oldData.totalVotes;
+      const deltaVotes = newData.totalVotes - oldData.totalVotes;
       const deltaVery = newData.votes_very - oldData.votes_very;
       const deltaSomewhat = newData.votes_somewhat - oldData.votes_somewhat;
       const deltaNot = newData.votes_not - oldData.votes_not;
       text += `${text ? '\n' : ''}\
 Rating was changed.
-Votes: <b>${newData.totalVotes}</b> <i>(${sign(deltaVoites)})</i>
+Votes: <b>${newData.totalVotes}</b> <i>(${sign(deltaVotes)})</i>
   Very: <b>${newData.votes_very}</b> <i>(${sign(deltaVery)})</i>
   Somewhat: <b>${newData.votes_somewhat}</b> <i>(${sign(deltaSomewhat)})</i>
   Not much: <b>${newData.votes_not}</b> <i>(${sign(deltaNot)})</i>
