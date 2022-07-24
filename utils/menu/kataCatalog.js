@@ -7,8 +7,8 @@ import Codewars from './../codewars.js';
 import Kata from '../entities/kata.js';
 
 function generateKataText(info) {
-  info.totalVoites = info.votes_very + info.votes_somewhat + info.votes_not;
-  info.rating = ((info.votes_very + info.votes_somewhat / 2) / info.totalVoites) * 100;
+  info.totalVotes = info.votes_very + info.votes_somewhat + info.votes_not;
+  info.rating = ((info.votes_very + info.votes_somewhat / 2) / info.totalVotes) * 100;
 
   return `\
 «<a href="${Codewars.getKataLink(info.cid)}"><b>${info.name}</b></a>».\n
@@ -16,7 +16,7 @@ Completed <b>${info.completed}</b> times.
 Stars: <b>${info.stars}</b>
 Comments: <b>${info.comments}</b>
 
-Votes: <b>${info.totalVoites}</b>
+Votes: <b>${info.totalVotes}</b>
   Very: <b>${info.votes_very}</b>
   Somewhat: <b>${info.votes_somewhat}</b>
   Not much: <b>${info.votes_not}</b>
@@ -26,7 +26,7 @@ Rating: <b>${info.rating.toFixed(2)}%</b>`;
 
 export default [
   [
-    'kata_katalog',
+    'kata_catalog',
     async (ctx) => {
       await ctx.answerCbQuery();
 
@@ -74,7 +74,7 @@ export default [
       const options = {
         parse_mode: 'HTML',
         disable_web_page_preview: true,
-        reply_markup: Markup.inlineKeyboard([backButton('kata_katalog')]).reply_markup,
+        reply_markup: Markup.inlineKeyboard([backButton('kata_catalog')]).reply_markup,
       };
 
       PG.startSession(async (client) => {

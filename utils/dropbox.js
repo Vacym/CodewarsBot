@@ -7,6 +7,6 @@ const dbx = new Dropbox({
   clientSecret: global.process.env.DROPBOX_APP_SECRET,
 });
 
-const dbxfs = new Dbxfs({ dbxRoot: '/history', localRoot: '/tmp', dbx });
+const dbxfs = new Dbxfs({ dbxRoot: global.process.env.DROPBOX_PATH, localRoot: '/tmp', dbx });
 
 export default dbxfs;

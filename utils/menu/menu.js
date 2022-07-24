@@ -1,7 +1,7 @@
 import { Markup } from 'telegraf';
 
 import notificationSettings from './notificationSettings.js';
-import kataKatalog from './kataKatalog.js';
+import kataCatalog from './kataCatalog.js';
 import information from './information.js';
 
 import send from './../send.js';
@@ -29,7 +29,7 @@ const firstMenu = [
   'Menu',
   Markup.inlineKeyboard([
     [Markup.button.callback('Notification settings', 'notification_settings')],
-    [Markup.button.callback('Catalog of katas', 'kata_katalog')],
+    [Markup.button.callback('Catalog of katas', 'kata_catalog')],
     [Markup.button.callback('About', 'information')],
   ]),
 ];
@@ -45,7 +45,7 @@ const firstMenuAction = [
 function initializeMenu(bot) {
   addActionsBot(bot, [firstMenuAction]);
   addActionsBot(bot, notificationSettings);
-  addActionsBot(bot, kataKatalog);
+  addActionsBot(bot, kataCatalog);
   addActionsBot(bot, information);
 }
 

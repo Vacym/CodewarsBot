@@ -40,7 +40,7 @@ export function approvedBetaKatasKb() {
   return Markup.keyboard([['Approved', 'Beta'], ['Both'], ['Neither']]).resize();
 }
 
-export function iformationKb() {
+export function informationKb() {
   return Markup.inlineKeyboard([
     [Markup.button.url(`Github`, 'https://github.com/Vacym/codewarsBot')],
     [Markup.button.url(`Chat me`, 'https://t.me/Vacymm')],

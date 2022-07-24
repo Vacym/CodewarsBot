@@ -1,6 +1,6 @@
 import { Markup } from 'telegraf';
 
-import { iformationKb } from './../keyboards.js';
+import { informationKb } from './../keyboards.js';
 import send from './../send.js';
 
 export default [
@@ -18,7 +18,7 @@ You can invoke the instructions by sending the /start command
 
 To contact: @Vacymm
 Bot version: ${process.env.npm_package_version}`,
-        iformationKb()
+        informationKb()
       );
     },
   ],

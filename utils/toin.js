@@ -9,7 +9,7 @@
 // This class does not include all of the things you can do with a buffer
 // But for now it's enough for me.
 
-const bufferPrototipe = {
+const bufferPrototype = {
   add(array) {
     this.buffer = toin.add(this.buffer, array);
   },
@@ -19,9 +19,9 @@ class toin {
   open(buffer) {
     const bufObject = {
       buffer,
-      ...toin.getPropertiesFtin(buffer),
+      ...toin.getPropertiesToin(buffer),
     };
-    Object.setPrototypeOf(bufObject, bufferPrototipe);
+    Object.setPrototypeOf(bufObject, bufferPrototype);
 
     return bufObject;
   }
@@ -29,7 +29,7 @@ class toin {
   static create(array, options = {}) {
     options = { negative: false, bits: 64, ...options };
 
-    if (!array.length || !array[0].length) throw 'array shuld be non empty';
+    if (!array.length || !array[0].length) throw 'array should be non empty';
 
     const bytes = options.bits / 8;
     const bytesOnLine = array[0].length * bytes;
@@ -51,7 +51,7 @@ class toin {
   }
 
   static read(buf) {
-    const { bytes, lineLength } = toin.getPropertiesFtin(buf);
+    const { bytes, lineLength } = toin.getPropertiesToin(buf);
     const bytesOnLine = lineLength * bytes;
 
     const data = new Array((buf.length - 2) / bytes / lineLength).fill(
@@ -75,7 +75,7 @@ class toin {
   }
 
   static readLastLine(buf) {
-    const { bytes, lineLength } = toin.getPropertiesFtin(buf);
+    const { bytes, lineLength } = toin.getPropertiesToin(buf);
     const bytesOnLine = lineLength * bytes;
 
     const data = new Array(lineLength).fill(0);
@@ -107,7 +107,7 @@ class toin {
     return num;
   }
 
-  static getPropertiesFtin(buf) {
+  static getPropertiesToin(buf) {
     const negative = Math.trunc(buf[0] / 128);
     const bytes = buf[0] - negative * 128;
     const lineLength = buf[1];
@@ -115,7 +115,7 @@ class toin {
   }
 
   static add(buf, array) {
-    return Buffer.concat([buf, toin.create(array, toin.getPropertiesFtin(buf)).subarray(2)]);
+    return Buffer.concat([buf, toin.create(array, toin.getPropertiesToin(buf)).subarray(2)]);
   }
 }
 
