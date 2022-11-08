@@ -47,3 +47,21 @@ export function informationKb() {
     [backButton('menu')],
   ]);
 }
+
+export function paginationKb(currentPage = 1, pageCount, callbackStart = '') {
+  function createButtonText(number) {
+    return currentPage == number
+      ? `-${number}-`
+      : (number == 1 && currentPage > 3 ? '« ' : '') +
+          number +
+          (number == pageCount && currentPage < pageCount - 2 ? ' »' : '');
+  }
+  const secondButton = Math.max(2, Math.min(currentPage - 1, pageCount - 3));
+
+  const numbers = [
+    1,
+    ...Array.from(Array(Math.min(pageCount - 2, 3)), (_, x) => secondButton + x),
+    pageCount,
+  ];
+  return Array.from(numbers, (x) => Markup.button.callback(createButtonText(x), callbackStart + x));
+}

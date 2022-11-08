@@ -7,6 +7,14 @@ export default async (ctx, text, extra) => {
       await ctx.editMessageText(text, extra);
     }
   } catch (err) {
-    console.error(err);
+    if (
+      err.response.description ==
+      'Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message'
+    ) {
+      // message is not modified
+    } else {
+      console.error(err);
+      ctx.reply('Error');
+    }
   }
 };
