@@ -29,7 +29,7 @@ const firstMenu = [
   'Menu',
   Markup.inlineKeyboard([
     [Markup.button.callback('Notification settings', 'notification_settings')],
-    [Markup.button.callback('Catalog of katas', 'kata_catalog')],
+    [Markup.button.callback('Catalog of katas', 'kata_catalog:1')],
     [Markup.button.callback('About', 'information')],
   ]),
 ];
